@@ -1,0 +1,11 @@
+bin/**
+tmp/**
+lib/**
+cabal-haskell/**
+*.lex
+*.sym
+include/stubs/**
+
+*.vscode
+*.txt
+*.yaml
