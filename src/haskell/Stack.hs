@@ -1,5 +1,5 @@
 -- Stack.hs
--- Generic functional linked stack
+-- Generic linked stack
 -- Really just a wrapper for a list, but much more intuitive to read than 
 --  Haskell's list syntax when used in state transition functions
 
@@ -21,4 +21,4 @@ module Stack where
   filterTop :: Stack d -> (d -> Bool) -> Maybe d
   filterTop [] f = Nothing
   filterTop (t:rest) f | f t       = Just t
-                        | otherwise = filterTop rest f
+                       | otherwise = filterTop rest f

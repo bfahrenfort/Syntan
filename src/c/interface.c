@@ -4,8 +4,10 @@
 #include "syntan/lexical.h"
 #include "syntan/interface.h"
 
-FILE *token_file, *symbol_file;
+FILE *token_file, *symbol_file, *asm_file;
+int instr_ptr = 0;
 int num_temps = 0;
+int num_blocks = 0;
 
 Symbol* next_symbol()
 {
@@ -74,8 +76,37 @@ Symbol* temp_add()
 
   // Default value
   strcpy(ret->value, "-");
-
+  // TODO: write temp to symbol table file
   return ret;
+}
+
+Symbol* block_add()
+{
+  Symbol *ret = malloc(sizeof(Symbol));
+  char block_num[12];
+  ret->name = malloc(128);
+  ret->value = malloc(128);
+  
+  // Assign name (B1, B2, ...)
+  ++num_blocks;
+  strcpy(ret->name, "B");
+  sprintf(block_num, "%d", num_blocks);
+  strcat(ret->name, block_num);
+
+  // Default value
+  strcpy(ret->value, "-");
+  // TODO: write block to symbol table file
+  return ret;
+}
+
+void asm_write(char *input)
+{
+  fputs(input, asm_file);
+}
+
+void procedure_block_write(Symbol *proc)
+{
+
 }
 
 void parser_init(char *tokens, char *symbols)
