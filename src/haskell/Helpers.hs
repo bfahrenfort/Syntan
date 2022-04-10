@@ -1,15 +1,26 @@
-{-# LANGUAGE PatternSynonyms #-}
-{-# LANGUAGE ViewPatterns #-}
+-- Helpers.hs
+-- Various functions for printing or going back and forth between representations
+
+{-# LANGUAGE PatternSynonyms #-}          -- Like a macro, but for pattern matching
+{-# LANGUAGE ViewPatterns #-}             -- Like a function, but for pattern matching
+{-# LANGUAGE ForeignFunctionInterface #-} -- The usual
+{-# LANGUAGE CApiFFI #-}
 
 module Helpers where
   import Foreign.C.Types
   import Foreign.C.String
   import Foreign.Ptr
+  import Foreign.Storable
   import Data.Tuple (swap)
   import Data.Maybe (fromJust, isJust)
   import Text.Read (readMaybe)
 
   import TypeDeclarations
+  import Stack
+  import Assembly
+
+  foreign import capi "syntan/interface.h temp_add" tempAdd :: IO (Ptr Symbol)
+  foreign import capi "syntan/interface.h block_add" blockAdd :: IO (Ptr Symbol)
 
   printSymbol :: Symbol -> IO ()
   printSymbol s = do
@@ -141,6 +152,55 @@ module Helpers where
   idx :: TokenOrQuad -> Integer -- Index in table of a token/quad
   idx (Left t)  = toIndex . toEnum . fromIntegral $ tok_class t
   idx (Right _) = -2
+
+  -- Analyze a stack of quads/tokens to turn it into a real quad
+  toQuad :: Stack TokenOrQuad -> [Symbol] -> IO Quad
+  toQuad [Left dest, Left op, Left src] symbols
+    | tok_class op == intEnum ASSIGN = do
+      dest_sym <- symbolFromToken dest symbols
+      src_sym <- symbolFromToken src symbols
+      return $ QuadSS op src_sym dest_sym                -- =, src_sym, -, dest_sym
+    | otherwise = do
+      src_sym <- symbolFromToken dest symbols
+      tf_sym <- symbolFromToken src symbols
+      temp <- tempAdd >>= peek
+      return $ QuadSSS op src_sym tf_sym temp            -- +, src_sym, tf_sym, temp
+  toQuad [Left dest, Left op, Right src] symbols
+    | tok_class op == intEnum ASSIGN = do
+      dest_sym <- symbolFromToken dest symbols
+      return $ QuadQS op src dest_sym                    -- =, src, -, dest_sym,
+    | otherwise = do
+      src_sym <- symbolFromToken dest symbols
+      temp <- tempAdd >>= peek
+      return $ QuadSQS op src_sym src temp               -- +, src_sym, src (actually tf), temp
+  toQuad [Right src, Left op, Left tf] symbols = do
+    tf_sym <- symbolFromToken tf symbols
+    temp <- tempAdd >>= peek
+    return $ QuadQSS op src tf_sym temp                  -- +, src, tf_sym, temp
+  toQuad [Right src, Left op, Right tf] symbols = do
+    temp <- tempAdd >>= peek
+    return $ QuadQQS op src tf temp                      -- +, src, tf, temp
+  toQuad [Left op, Left src] symbols = do
+    src_sym <- symbolFromToken src symbols
+    return $ QuadS op src_sym                            -- ODD, src, -, -
+  toQuad [Left op, Right src] symbols = do
+    return $ QuadQ op src                                -- ODD, src, -. -
+  toQuad [Left op, Left src, Left lp, Left rp] symbols |  tok_class op == intEnum CALL
+                                                      && tok_class lp == intEnum LP
+                                                      && tok_class rp == intEnum RP = do
+    src_sym <- symbolFromToken src symbols
+    return $ QuadS op src_sym
+  toQuad [Left iwop, Right cond, Left thenop, Right stmt] symbols = do
+    return $ QuadIW iwop cond stmt
+  toQuad (Block (Left lb) quads (Left rb)) symbols |  tok_class lb == intEnum LB
+                                                  && tok_class rb == intEnum RB = do
+    generateASM quads
+    block <- blockAdd >>= peek
+    return $ QuadB block
+  toQuad [Left xproc, Left tproc, Left lp, Left rp, Right block] symbols = do
+    proc_sym <- symbolFromToken tproc symbols
+    return $ QuadP xproc proc_sym block
+  toQuad _ _ = return Invalid
 
   -- Pattern match helper
   initPlusLast :: [a] -> Maybe ([a], a)

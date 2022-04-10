@@ -1,23 +1,15 @@
 -- Parser.hs
 -- Syntax analysis automaton
 
--- Compiler macros to allow exporting and importing symbols
+-- Allow exporting and importing symbols
 {-# LANGUAGE ForeignFunctionInterface #-}
-{-# LANGUAGE CApiFFI #-} -- Allows better imports with capi as opposed to ccall
 
 module Parser where
 
-import Foreign.C.Types
 import Foreign.Ptr
 import Foreign.C.String
-import System.IO.Unsafe (unsafePerformIO)
-import Data.Either
 import Data.List (elemIndex, find)
-import Data.Tuple (swap)
-import Data.Maybe (fromJust, isJust)
-import Data.Functor ((<&>))
-import Text.Read (readMaybe)
-import Control.Applicative ((<$>), (<*>))
+import Data.Maybe (fromJust)
 import Foreign.Storable
 
 import PDA
@@ -26,9 +18,6 @@ import TypeDeclarations
 import Helpers
 import CGets
 import Assembly
-
-foreign import capi "syntan/interface.h temp_add" tempAdd :: IO (Ptr Symbol)
-foreign import capi "syntan/interface.h block_add" blockAdd :: IO (Ptr Symbol)
 
 -- The main focus of the program
 -- It should be noted that I use 'Skip' to denote a guaranteed collapse
@@ -54,57 +43,9 @@ precedence_matrix = [[   Skip, Yields,  Error,  Error,  Error,  Error, Yields,  
                      [  Takes, Yields,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Takes,  Error,  Error,  Error,  Takes,  Error,  Error,  Error,  Error ], -- VAR
                      [  Error,  Error,  Error,  Equal,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error ], -- PROCEDURE
                      [  Takes, Yields,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Takes,  Error,  Error,  Error,  Takes,  Error,  Error,  Error,  Error ]] -- CONST
-  
--- Analyze a stack of quads/tokens to turn it into a real quad
-toQuad :: Stack TokenOrQuad -> [Symbol] -> IO Quad
-toQuad [Left dest, Left op, Left src] symbols
-  | tok_class op == intEnum ASSIGN = do
-    dest_sym <- symbolFromToken dest symbols
-    src_sym <- symbolFromToken src symbols
-    return $ QuadSS op src_sym dest_sym                -- =, src_sym, -, dest_sym
-  | otherwise = do
-    src_sym <- symbolFromToken dest symbols
-    tf_sym <- symbolFromToken src symbols
-    temp <- tempAdd >>= peek
-    return $ QuadSSS op src_sym tf_sym temp            -- +, src_sym, tf_sym, temp
-toQuad [Left dest, Left op, Right src] symbols
-  | tok_class op == intEnum ASSIGN = do
-    dest_sym <- symbolFromToken dest symbols
-    return $ QuadQS op src dest_sym                    -- =, src, -, dest_sym,
-  | otherwise = do
-    src_sym <- symbolFromToken dest symbols
-    temp <- tempAdd >>= peek
-    return $ QuadSQS op src_sym src temp               -- +, src_sym, src (actually tf), temp
-toQuad [Right src, Left op, Left tf] symbols = do
-  tf_sym <- symbolFromToken tf symbols
-  temp <- tempAdd >>= peek
-  return $ QuadQSS op src tf_sym temp                  -- +, src, tf_sym, temp
-toQuad [Right src, Left op, Right tf] symbols = do
-  temp <- tempAdd >>= peek
-  return $ QuadQQS op src tf temp                      -- +, src, tf, temp
-toQuad [Left op, Left src] symbols = do
-  src_sym <- symbolFromToken src symbols
-  return $ QuadS op src_sym                            -- ODD, src, -, -
-toQuad [Left op, Right src] symbols = do
-  return $ QuadQ op src                                -- ODD, src, -. -
-toQuad [Left op, Left src, Left lp, Left rp] symbols |  tok_class op == intEnum CALL
-                                                     && tok_class lp == intEnum LP
-                                                     && tok_class rp == intEnum RP = do
-  src_sym <- symbolFromToken src symbols
-  return $ QuadS op src_sym
-toQuad [Left iwop, Right cond, Left thenop, Right stmt] symbols = do
-  return $ QuadIW iwop cond stmt
-toQuad (Block (Left lb) quads (Left rb)) symbols |  tok_class lb == intEnum LB
-                                                 && tok_class rb == intEnum RB = do
-  generateASM quads
-  block <- blockAdd >>= peek
-  return $ QuadB block
-toQuad [Left xproc, Left tproc, Left lp, Left rp, Right block] symbols = do
-  proc_sym <- symbolFromToken tproc symbols
-  return $ QuadP xproc proc_sym block
-toQuad _ _ = return Invalid
 
--- Look for tail of handle and push finished quad to the new stack
+
+  -- Pop logic, Look for tail of handle and generate quad
 generateQuad :: Stack TokenOrQuad -> Stack TokenOrQuad -> [Symbol] -> Integer -> IO (Stack TokenOrQuad)
 generateQuad stk@(tok_or_quad:rest) [] symbols counter = do
   putStr "Empty quad stack "
@@ -115,7 +56,8 @@ generateQuad stk@(tok_or_quad:rest) quad_stk symbols counter
   | idx tok_or_quad == toIndex SEMI = do
     putStrLn "skip semi"
     generateQuad rest quad_stk symbols counter -- semi collapse
-  | idx (top quad_stk) == 17 || idx (top quad_stk) == 19 = do
+  |  idx (top quad_stk) == toIndex XVAR 
+  || idx (top quad_stk) == toIndex XCONST = do
     putStr "case 1 "
     printTokenOrQuad tok_or_quad
     putStrLn ""
@@ -125,9 +67,9 @@ generateQuad stk@(tok_or_quad:rest) quad_stk symbols counter
     printTokenOrQuad tok_or_quad
     putStrLn ""
     generateQuad rest 
-                                                         (push quad_stk tok_or_quad) 
-                                                         symbols 
-                                                         (counter + 1)
+                                                        (push quad_stk tok_or_quad) 
+                                                        symbols 
+                                                        (counter + 1)
   | otherwise = do
     putStr "case 4 "
     printTokenOrQuad tok_or_quad
@@ -163,10 +105,9 @@ generateQuad stk@(tok_or_quad:rest) quad_stk symbols counter
           (Right quad)
       else generateQuad rest (push quad_stk tok_or_quad) symbols $ counter + 1 -- Equal precedence
 
-
--- Lookup and push/pop logic
+-- Lookup and push
 -- TODO: when PROCEDURE pushed, add to stack to assign to next block
--- TODO: cur_idx needs to be idx . fromJust $ filterTop tokens isTerminal, not idx $ Left tok
+-- TODO: fixups
 stateFunc :: [Token] -> Stack TokenOrQuad -> [Symbol] -> IO (Bool, Stack TokenOrQuad)
 stateFunc (tok:_) [Left start] _ = return (False, [Left tok, Left start]) -- Only a semi in the stack
 stateFunc tokens@(tok:_) stk symbols = do
@@ -183,7 +124,7 @@ stateFunc tokens@(tok:_) stk symbols = do
     return (True, new_stk)
   else do
 
-    if (stk_idx == 17 || stk_idx == 19) && cur_idx /= 0 -- Declaration statement
+    if (stk_idx == toIndex XVAR || stk_idx == toIndex XCONST) && cur_idx /= 0 -- Declaration statement
       then do 
       putStrLn "no push"
       putStrLn ""
@@ -230,10 +171,10 @@ checkEnd (Program (Left semi) (Left xclass) (Left cname) (Left lb) quads (Left r
   && tok_class lb     == intEnum LB
   && tok_class cname  == intEnum IDENT
   && tok_class xclass == intEnum XCLASS
-  && tok_class semi   == intEnum SEMI = (True, quads)
-checkEnd (Left tok:rest) | tok_class tok == intEnum TINVALID = (True, Left tok:rest)
-                         | otherwise = (False, Left tok:rest)
-checkEnd (Right Invalid:rest) = (True, Right Invalid:rest)
+  && tok_class semi   == intEnum SEMI = (True, quads) -- Valid program
+checkEnd stk@(Left tok:rest) | tok_class tok == intEnum TINVALID = (True, stk)
+                             | otherwise = (False, stk)
+checkEnd stk@(Right Invalid:rest) = (True, stk)
 checkEnd any = (False, any) 
 
 -- The bees have returned, and not in the good way that logically deletes them
@@ -270,7 +211,6 @@ runParser = do
     else putStrLn "Syntan: Parse Fail"
   
   -- Clean up environment (lots of memory was thrown around during imports)
-  -- NOTE clean up signal token symbol and quad
   symbolsFinalize symbol_list
   tokensFinalize token_list
   
