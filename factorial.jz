@@ -5,7 +5,7 @@ CLASS Factorial {
     IF X > 1 THEN {
       Y = Y * X;
       X = X - 1;
-      CALL Fact();
+      CALL FactHelper();
     }
   }
 
@@ -20,7 +20,7 @@ CLASS Factorial {
     CALL FactHelper()
   }
 
-  X = 5; 
+  GET X;
   CALL Fact();
 
   PRINT Y
