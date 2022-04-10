@@ -76,6 +76,7 @@ module TypeDeclarations where
                   | XCLASS | XVAR | XCONST | XPROC
                   | IDENT | INTEGER
                   | IF | THEN | WHILE | DO | CALL | ODD
+                  | PRINT | GET
                   | ASSIGN | ADDOP | MOP | RELOP
                   | LB | RB | LP | RP 
                   | COMMA | SEMI
@@ -84,6 +85,7 @@ module TypeDeclarations where
   -- Turning integers in memory locations into enums and back again
   token_pairs_enum  = [ (TINVALID, 0), (XCLASS, -1), (XVAR, -2), (XCONST, -3), (IDENT, 6), 
                         (IF, -4), (THEN, -5), (XPROC, -6), (WHILE, -7), (DO, -8), (CALL, -9), (ODD, -10),
+                        (PRINT, -11), (GET, -12),
                         (INTEGER, 4),
                         (ASSIGN, 12), (ADDOP, 21), (MOP, 10), (RELOP, 13), 
                         (LB, 25), (RB, 27), (COMMA, 29), (SEMI, 17), (LP, 31), (RP, 33) ]
@@ -93,7 +95,7 @@ module TypeDeclarations where
                         (SEMI, 0), (ASSIGN, 1), (ADDOP, 2), (LP, 3), (RP, 4), (MOP, 5), 
                         (IF, 6), (THEN, 7), (ODD, 8), (RELOP, 9),
                         (LB, 10), (RB, 11), (CALL, 12), (WHILE, 13), (DO, 14), (COMMA, 15),
-                        (XCLASS, 16), (XVAR, 17), (XPROC, 18), (XCONST, 19) ]
+                        (XCLASS, 16), (XVAR, 17), (XPROC, 18), (XCONST, 19), (PRINT, 20), (GET, 21) ]
                         
   instance Enum TokenClass where
     fromEnum x = fromJust (lookup x token_pairs_enum) -- Corresponding entry in the pairs list
