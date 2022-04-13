@@ -24,6 +24,7 @@ module Assembly where
   patternMatchWrite :: Quad -> IO ()
   patternMatchWrite quad = putStrLn "Writing a quad (not really)"
 
+  -- TODO: Program pattern match
   generateASM :: [TokenOrQuad] -> IO ()
   generateASM [Right quad] = do
     let optimized = optimizeQuad quad

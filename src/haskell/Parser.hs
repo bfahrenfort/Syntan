@@ -20,31 +20,34 @@ import CGets
 import Assembly
 
 -- The main focus of the program
--- It should be noted that I use 'Skip' to denote a guaranteed collapse
+-- It should be noted that I use 'Skip' to denote when to collapse
 -- Semicolons are worthless and thus are thrown out
-                    --      ;,      =,    +/-,      (,      ),    *//,     IF,   THEN,    ODD,  relop,      {,      },   CALL,  WHILE,     DO,      ,,  CLASS,   VAR,    PROC,  CONST,  PRINT,    GET 
-precedence_matrix = [[   Skip, Yields,  Error,  Error,  Error,  Error, Yields,  Error,  Error,  Error,  Error,  Takes, Yields, Yields,  Error,  Error, Yields, Yields, Yields, Yields, Yields, Yields ], -- ; (interaction w }?)
-                     [  Takes,  Error, Yields, Yields,  Error, Yields,  Error,  Error,  Error,  Error,  Error,  Takes,  Error,  Error,  Error,  Takes,  Error,  Error,  Error,  Error,  Error,  Error ], -- =
-                     [  Takes,  Error,  Takes, Yields,  Takes, Yields,  Error,  Takes,  Error,  Takes,  Error,  Takes,  Error,  Error,  Error,  Takes,  Error,  Error,  Error,  Error,  Error,  Error ], -- +/-
-                     [  Error,  Error, Yields, Yields,  Equal, Yields,  Error,  Error,  Error,  Error,  Error,  Error, Yields,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error ], -- (
-                     [  Takes,  Error,  Takes,  Error,  Takes,  Takes,  Error,  Takes,  Error,  Takes, Yields,  Takes,  Error,  Error,  Takes,  Takes,  Error,  Error,  Takes,  Error, Yields, Yields ], -- ) (Interaction with {?)
-                     [  Takes,  Error,  Takes, Yields,  Takes,  Takes,  Error,  Takes,  Error,  Takes,  Error,  Takes,  Error,  Error,  Error,  Takes,  Error,  Error,  Error,  Error,  Error,  Error ], -- / / *
-                     [  Error,  Error, Yields, Yields,  Error, Yields,  Error,  Equal, Yields, Yields,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error ], -- IF
-                     [  Takes, Yields, Yields,  Error,  Error, Yields, Yields,  Error,  Error,  Error, Yields,  Takes, Yields, Yields,  Error,  Error,  Error, Yields,  Error, Yields, Yields, Yields ], -- THEN
-                     [  Error,  Error,  Error, Yields,  Takes,  Error,  Error,  Takes,  Error,  Error,  Error,  Takes,  Error,  Error,  Takes,  Error,  Error,  Error,  Error,  Error,  Error,  Error ], -- ODD (maybe yield to +-*/?)
-                     [  Error,  Error, Yields, Yields,  Takes, Yields,  Error,  Takes,  Error,  Error,  Error,  Error,  Error,  Error,  Takes,  Error,  Error,  Error,  Error,  Error,  Error,  Error ], -- relop
-                     [   Skip, Yields,  Error,  Error,  Error,  Error, Yields,  Error,  Error,  Error, Yields,  Equal, Yields, Yields,  Error,  Error,  Error, Yields, Yields, Yields, Yields, Yields ], -- {
-                     [  Error,  Takes,  Error,  Error,  Error,  Error,  Takes,  Error,  Error,  Error,  Takes,  Takes,  Takes,  Takes,  Error,  Error,  Takes,  Takes,  Takes,  Takes,  Takes,  Takes ], -- }
-                     [  Error,  Error,  Error,  Equal,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error ], -- CALL
-                     [  Error,  Error, Yields, Yields,  Error, Yields,  Error,  Error, Yields, Yields,  Error,  Error,  Error,  Error,  Equal,  Error,  Error,  Error,  Error,  Error,  Error,  Error ], -- WHILE
-                     [  Takes, Yields, Yields,  Error,  Error, Yields, Yields,  Error,  Error,  Error, Yields,  Takes, Yields, Yields,  Error,  Error,  Error, Yields,  Error, Yields, Yields, Yields ], -- DO
-                     [  Takes,  Takes,  Takes,  Takes,  Takes,  Takes,  Error,  Error,  Error,  Error,  Error,  Takes,  Error,  Error,  Error,  Takes,  Error,  Error,  Error,  Error,  Error,  Error ], -- ,
-                     [  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error, Yields,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error ], -- CLASS
-                     [  Takes, Yields,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Takes,  Error,  Error,  Error,  Takes,  Error,  Error,  Error,  Error,  Error,  Error ], -- VAR
-                     [  Error,  Error,  Error,  Equal,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error ], -- PROCEDURE
-                     [  Takes, Yields,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Takes,  Error,  Error,  Error,  Takes,  Error,  Error,  Error,  Error,  Error,  Error ], -- CONST
-                     [  Takes,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Takes,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error ], -- PRINT
-                     [  Takes,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Takes,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error ]] -- GET
+                    --      ;,      =,    +/-,      (,      ),    *//,     IF,   THEN,    ODD,  relop,      {,      },   CALL,  WHILE,     DO,      ,,  CLASS,   VAR,    PROC,  CONST,  PRINT,    GET,   XARR,     LS,     RS
+precedence_matrix = [[   Skip, Yields,  Error,  Error,  Error,  Error, Yields,  Error,  Error,  Error,  Error,  Takes, Yields, Yields,  Error,  Error, Yields, Yields, Yields, Yields, Yields, Yields, Yields, Yields,  Error ], -- ;
+                     [  Takes,  Error, Yields, Yields,  Error, Yields,  Error,  Error,  Error,  Error,  Error,  Takes,  Error,  Error,  Error,  Takes,  Error,  Error,  Error,  Error,  Error,  Error,  Error, Yields,  Error ], -- =
+                     [  Takes,  Error,  Takes, Yields,  Takes, Yields,  Error,  Takes,  Error,  Takes,  Error,  Takes,  Error,  Error,  Error,  Takes,  Error,  Error,  Error,  Error,  Error,  Error,  Error, Yields,  Takes ], -- +/-
+                     [  Error,  Error, Yields, Yields,  Equal, Yields,  Error,  Error,  Error,  Error,  Error,  Error, Yields,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error, Yields,  Error ], -- (
+                     [  Takes,  Error,  Takes,  Takes,  Takes,  Takes,  Error,  Takes,  Error,  Takes, Yields,  Takes,  Error,  Error,  Takes,  Takes,  Error,  Error,  Takes,  Error, Yields, Yields,  Error,  Error,  Takes ], -- ) (Interaction with {?)
+                     [  Takes,  Error,  Takes, Yields,  Takes,  Takes,  Error,  Takes,  Error,  Takes,  Error,  Takes,  Error,  Error,  Error,  Takes,  Error,  Error,  Error,  Error,  Error,  Error,  Error, Yields,  Takes ], -- / / *
+                     [  Error,  Error, Yields, Yields,  Error, Yields,  Error,  Equal, Yields, Yields,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error, Yields,  Error ], -- IF
+                     [  Takes, Yields, Yields,  Error,  Error, Yields, Yields,  Error,  Error,  Error, Yields,  Takes, Yields, Yields,  Error,  Error,  Error, Yields,  Error, Yields, Yields, Yields, Yields, Yields,  Error ], -- THEN
+                     [  Error,  Error,  Error, Yields,  Takes,  Error,  Error,  Takes,  Error,  Error,  Error,  Takes,  Error,  Error,  Takes,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error, Yields,  Error ], -- ODD (maybe yield to +-*/?)
+                     [  Error,  Error, Yields, Yields,  Takes, Yields,  Error,  Takes,  Error,  Error,  Error,  Error,  Error,  Error,  Takes,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error, Yields,  Error ], -- < <= > >= == !=
+                     [   Skip, Yields,  Error,  Error,  Error,  Error, Yields,  Error,  Error,  Error, Yields,  Equal, Yields, Yields,  Error,  Error,  Error, Yields, Yields, Yields, Yields, Yields, Yields, Yields,  Error ], -- {
+                     [  Error,  Takes,  Error,  Error,  Error,  Error,  Takes,  Error,  Error,  Error,  Takes,  Takes,  Takes,  Takes,  Error,  Error,  Takes,  Takes,  Takes,  Takes,  Takes,  Takes,  Takes,  Takes,  Error ], -- }
+                     [  Error,  Error,  Error,  Equal,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error ], -- CALL
+                     [  Error,  Error, Yields, Yields,  Error, Yields,  Error,  Error, Yields, Yields,  Error,  Error,  Error,  Error,  Equal,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error, Yields,  Error ], -- WHILE
+                     [  Takes, Yields, Yields,  Error,  Error, Yields, Yields,  Error,  Error,  Error, Yields,  Takes, Yields, Yields,  Error,  Error,  Error, Yields,  Error, Yields, Yields, Yields, Yields, Yields,  Error ], -- DO
+                     [  Takes,  Takes,  Takes,  Takes,  Takes,  Takes,  Error,  Error,  Error,  Error,  Error,  Takes,  Error,  Error,  Error,  Takes,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error ], -- ,
+                     [  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error, Yields,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error ], -- CLASS
+                     [  Takes, Yields,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Takes,  Error,  Error,  Error,  Takes,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error ], -- VAR
+                     [  Error,  Error,  Error,  Equal,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error ], -- PROCEDURE
+                     [  Takes, Yields,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Takes,  Error,  Error,  Error,  Takes,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error ], -- CONST
+                     [  Takes,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Takes,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error, Yields,  Error ], -- PRINT
+                     [  Takes,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Takes,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error, Yields,  Error ], -- GET
+                     [  Takes,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error, Yields,  Error ], -- ARRAY
+                     [  Error,  Error, Yields, Yields,  Error, Yields,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error, Yields,  Equal ], -- [
+                     [  Takes,  Takes,  Takes,  Error,  Takes,  Takes,  Error,  Takes,  Error,  Takes,  Error,  Takes,  Error,  Error,  Takes,  Takes,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Takes,  Takes ]] -- ]
 
 
   -- Pop logic, Look for tail of handle and generate quad
@@ -56,7 +59,8 @@ generateQuad stk@(tok_or_quad:rest) [] symbols counter = do
   generateQuad rest [tok_or_quad] symbols $ counter + 1
 generateQuad stk@(tok_or_quad:rest) quad_stk symbols counter 
   |  idx (top quad_stk) == toIndex XVAR 
-  || idx (top quad_stk) == toIndex XCONST = do
+  || idx (top quad_stk) == toIndex XCONST
+  || idx (top quad_stk) == toIndex XARR = do
     putStr "case declaration "
     printTokenOrQuad tok_or_quad
     putStrLn ""
@@ -71,7 +75,8 @@ generateQuad stk@(tok_or_quad:rest) quad_stk symbols counter
     let m_top_quad_term = filterTop quad_stk isTerminal
     let quad_idx = maybe (-1) idx m_top_quad_term
 
-    if counter < 2 || idx tok_or_quad == -1 then do
+    if (counter < 2 || idx tok_or_quad == -1) || 
+       (idx tok_or_quad == -2 && idx (top quad_stk) == toIndex ASSIGN) then do
       putStrLn "Add the above to quad_stk"
       generateQuad rest (push quad_stk tok_or_quad) symbols $ counter + 1
     else do
@@ -116,7 +121,7 @@ stateFunc tokens@(tok:_) stk symbols = do
     return (True, new_stk)
   else do
 
-    if (stk_idx == toIndex XVAR || stk_idx == toIndex XCONST) && cur_idx /= 0 -- Declaration statement
+    if (stk_idx == toIndex XVAR || stk_idx == toIndex XCONST || stk_idx == toIndex XARR) && cur_idx /= 0 -- Declaration statement
       then do 
       putStrLn "no push"
       putStrLn ""
@@ -140,11 +145,13 @@ stateFunc tokens@(tok:_) stk symbols = do
         putStrLn "Starting quad gen"
         new_stk <- generateQuad stk [] symbols 0
         if   tok_class tok == intEnum SEMI
+          || tok_class tok == intEnum ASSIGN
           || tok_class tok == intEnum DO
           || tok_class tok == intEnum THEN
           || tok_class tok == intEnum XPROC
           || tok_class tok == intEnum RP 
-          || tok_class tok == intEnum RB then do -- Closing/collapsible token
+          || tok_class tok == intEnum RB
+          || tok_class tok == intEnum RS then do -- Closing/collapsible token
           putStrLn "Retry closer tok "
           return (True, new_stk)
         else return (False, new_stk)
@@ -170,9 +177,10 @@ checkEnd stk@(Left tok:rest) | tok_class tok == intEnum TINVALID = (True, stk)
 checkEnd stk@(Right Invalid:rest) = (True, stk)
 checkEnd any = (False, any) 
 
--- The bees have returned, and not in the good way that logically deletes them
+-- The bees have returned, and I don't mean they popped themselves from the call stack
 -- They've ingrained themselves in the head node of the linked stack,
 --  and taken over the info field
+-- Computer completely filled with bees
 -- Send beekeepers and debuggers
 pushDown :: P_D_Automaton symbol token stack_el -> [symbol] -> (token -> IO ()) -> [token] -> IO (Bool, Stack stack_el)
 pushDown (_, stk, f) _ _ [] = return . f $ reverse stk
