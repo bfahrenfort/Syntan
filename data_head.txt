@@ -1,0 +1,10 @@
+section .data	
+	Result db 'Result = '
+	ResultValue	db 'aaaaa'
+			db	0xA
+	ResultEnd equ $-Result
+
+  userMsg	db 'Enter an integer(less than 32,765): '
+	lenUserMsg	equ	$-userMsg
+
+  num	times 6 db 'ABCDEF'
