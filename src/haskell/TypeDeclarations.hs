@@ -75,7 +75,6 @@ module TypeDeclarations where
 
   -- Oh look here's a more custom one
   -- Longhand enumeration begin
-  -- TODO: string literal
   data TokenClass = TINVALID
                   | XCLASS | XVAR | XCONST | XPROC | XARR
                   | IDENT | INTEGER

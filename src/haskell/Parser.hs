@@ -51,7 +51,7 @@ precedence_matrix = [[   Skip, Yields,  Error,  Error,  Error,  Error, Yields,  
 
 
   -- Pop logic, Look for tail of handle and generate quad
-generateQuad :: Stack TokenOrQuad -> Stack TokenOrQuad -> [Symbol] -> Integer -> IO (Stack TokenOrQuad)
+generateQuad :: Stack TokenOrQuad -> Stack TokenOrQuad -> [Symbol] -> Integer -> IO (Stack TokenOrQuad, [Symbol])
 generateQuad stk@(tok_or_quad:rest) quad_stk symbols counter 
   |  idx (top (push quad_stk tok_or_quad)) == toIndex XVAR 
   || idx (top (push quad_stk tok_or_quad)) == toIndex XCONST
@@ -59,7 +59,7 @@ generateQuad stk@(tok_or_quad:rest) quad_stk symbols counter
     putStr "case declaration "
     printTokenOrQuad tok_or_quad
     putStrLn ""
-    return rest -- declaration statement
+    return (rest, symbols) -- declaration statement
   | otherwise = do
     putStr "case comparison "
     printTokenOrQuad tok_or_quad
@@ -87,7 +87,7 @@ generateQuad stk@(tok_or_quad:rest) quad_stk symbols counter
       let action = precedence_matrix!!fromIntegral stk_idx!!fromIntegral quad_idx
       
       -- If stack operator yields to quad operator, we found the head
-      -- FIXME: if there are any bugs in this entire program they're in these 20 lines
+      -- FIXME: if there are any bugs in this entire program they're in these 25 lines
       if action == Yields then do
         if idx tok_or_quad == toIndex ODD 
           || idx tok_or_quad == toIndex IF 
@@ -98,26 +98,26 @@ generateQuad stk@(tok_or_quad:rest) quad_stk symbols counter
           || idx tok_or_quad == toIndex CALL
           || idx tok_or_quad == toIndex PRINT
           || idx tok_or_quad == toIndex GET then do -- Rules that start with a terminal
-          quad <- toQuad new_quad symbols
+          (quad, new_symbols) <- toQuad new_quad symbols
           putStrLn "Found head, stack:"
           printTokenOrQuad $ Right quad
           putStrLn ""
           printTokensAndQuads rest
-          return $ push rest $ Right quad
+          return (push rest (Right quad), new_symbols)
         else do -- Rules that start with a nonterminal
-          quad <- toQuad (top rest:new_quad) symbols
+          (quad, new_symbols) <- toQuad (top rest:new_quad) symbols
           putStrLn "Found head, stack:"
           printTokenOrQuad $ Right quad
           putStrLn ""
           printTokensAndQuads $ pop rest
-          return $ push (pop rest) $ Right quad        
+          return (push (pop rest) (Right quad), new_symbols)        
       else generateQuad rest new_quad symbols $ counter + 1 -- Equal precedence
 
 -- Lookup and push
 -- TODO: when PROCEDURE pushed, add to stack to assign to next block
 -- TODO: fixups
-stateFunc :: [Token] -> Stack TokenOrQuad -> [Symbol] -> IO (Bool, Stack TokenOrQuad)
-stateFunc (tok:_) [Left start] _ = return (False, [Left tok, Left start]) -- Only a semi in the stack
+stateFunc :: [Token] -> Stack TokenOrQuad -> [Symbol] -> IO (Bool, Stack TokenOrQuad, [Symbol])
+stateFunc (tok:_) [Left start] symbols = return (False, [Left tok, Left start], symbols) -- Only a semi in the stack
 stateFunc tokens@(tok:_) stk symbols = do
   -- Index in table of current token
   --let cur_idx = fromIntegral . idx . Left . fromJust $ filterTop tokens isTerminalToken
@@ -128,19 +128,19 @@ stateFunc tokens@(tok:_) stk symbols = do
 
   if stk_idx == toIndex RB || isBlock (top stk) then do
     putStrLn "Unconditional pop"
-    new_stk <- generateQuad stk [] symbols 0
-    return (True, new_stk)
+    (new_stk, new_symbols) <- generateQuad stk [] symbols 0
+    return (True, new_stk, new_symbols)
   else do
 
     if (stk_idx == toIndex XVAR || stk_idx == toIndex XCONST || stk_idx == toIndex XARR) && cur_idx /= 0 -- Declaration statement
       then do 
       putStrLn "no push"
       putStrLn ""
-      return (False, stk)
+      return (False, stk, symbols)
     else if cur_idx < 0 || stk_idx < 0 then do -- tok is nonterminal or there are no operators in stk
       putStrLn "unconditional push"
       putStrLn ""
-      return (False, push stk $ Left tok)
+      return (False, push stk $ Left tok, symbols)
     else do
       print $ fromIndex stk_idx
       print $ fromIndex cur_idx
@@ -151,23 +151,23 @@ stateFunc tokens@(tok:_) stk symbols = do
         -- TODO: fixup
         putStrLn "conditioned push"
         putStrLn ""
-        return (False, push stk (Left tok))
+        return (False, push stk (Left tok), symbols)
       else if action == Takes then do
         putStrLn "Starting quad gen"
-        new_stk <- generateQuad stk [] symbols 0
+        (new_stk, new_symbols) <- generateQuad stk [] symbols 0
         if tok_class tok /= intEnum XVAR
           && tok_class tok /= intEnum XCONST
           && tok_class tok /= intEnum XARR then do -- Skip assignment statements
           putStrLn "Retry closer tok "
-          return (True, new_stk)
-        else return (False, new_stk)
+          return (True, new_stk, new_symbols)
+        else return (False, new_stk, new_symbols)
       else if action == Skip then do
         putStrLn "Skippin"
         putStrLn ""
-        return (False, stk)
+        return (False, stk, symbols)
       else do
         putStrLn "tinvalid"
-        return (False, push stk (Left $ Token { tname = nullPtr, tok_class = intEnum TINVALID })) -- to be caught by F
+        return (False, push stk (Left $ Token { tname = nullPtr, tok_class = intEnum TINVALID }), symbols) -- to be caught by F
 
 
 -- Check if stack contains a valid program or errored
@@ -188,18 +188,20 @@ checkEnd any = (False, True, any)
 --  and taken over the info field
 -- Computer completely filled with bees
 -- Send beekeepers and debuggers
-pushDown :: P_D_Automaton symbol token stack_el -> [symbol] -> (token -> IO ()) -> [token] -> IO (Bool, Bool, Stack stack_el)
-pushDown (_, stk, f) _ _ [] = return . f $ reverse stk
+pushDown :: P_D_Automaton symbol token stack_el -> [symbol] -> (token -> IO ()) -> [token] -> IO (Bool, Bool, Stack stack_el, [symbol])
+pushDown (_, stk, f) symbols _ [] = do
+  let (end, valid, err_stack) = f $ reverse stk
+  return (end, valid, err_stack, symbols)
 pushDown (delta, stk, f) symbols printer tokens@(tok:rest) = do
   printer tok
   putStrLn ""
 
-  (retry, new_stack) <- delta tokens stk symbols 
+  (retry, new_stack, new_symbols) <- delta tokens stk symbols 
   let (end, valid, err_stack) = f new_stack
 
-  if end then return (end, valid, err_stack)
-  else if retry then pushDown (delta, new_stack, f) symbols printer tokens
-  else pushDown (delta, new_stack, f) symbols printer rest
+  if end then return (end, valid, err_stack, new_symbols)
+  else if retry then pushDown (delta, new_stack, f) new_symbols printer tokens
+  else pushDown (delta, new_stack, f) new_symbols printer rest
 
 runParser :: IO ()
 runParser = do
@@ -209,19 +211,15 @@ runParser = do
   putStrLn "Syntan: Lexeme and Symbol Import Success"
   tokens <- mapM peek token_list
   symbols <- mapM peek symbol_list
-
-  --vals <- mapM (peekCString . value) symbols
-
-  -- Add start of assembly file
-  asmSetup symbols
   
   -- Pass and begin parse
   semi_str <- withCString ";" $ \ x -> do -- Stack-memory C string
     let semi_tok = Token { tname = x, tok_class = intEnum SEMI }
-    (_, valid, err_stack) <- pushDown (stateFunc, [Left semi_tok], checkEnd) symbols printToken tokens
+    (_, valid, err_stack, new_symbols) <- pushDown (stateFunc, [Left semi_tok], checkEnd) symbols printToken tokens
     if valid then do
+      asmSetup new_symbols
       generateASM err_stack
-      putStrLn "Syntan: Parse Success" -- TODO: bad logic
+      putStrLn "Syntan: Parse Success"
     else putStrLn "Syntan: Parse Fail"
   
   -- Clean up environment (lots of memory was thrown around during imports)

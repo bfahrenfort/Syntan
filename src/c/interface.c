@@ -94,9 +94,11 @@ Symbol* temp_add()
   sprintf(temp_num, "%d", num_temps);
   strcat(ret->name, temp_num);
 
+  ret->sym_class = STEMP;
+
   // Default value
-  strcpy(ret->value, "?");
-  // TODO: write temp to symbol table file
+  strcpy(ret->value, "0");
+
   return ret;
 }
 
