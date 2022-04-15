@@ -11,3 +11,4 @@ include/stubs/
 *.o
 *.vscode
 *.yaml
+*.qblock
