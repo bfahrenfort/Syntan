@@ -67,6 +67,12 @@ module Assembly where
       asmAction printer "mov" "ax" src False True
       asmAction printer "cmp" "ax" tf False True
       printer "jge "
+    | op == ">" = do
+      asmAction printer "mov" "ax" src False True
+      asmAction printer "cmp" "ax" tf False True
+      printer "jle "
+    | otherwise = do
+      putStrLn "not in opcase"
   operatorCase printer (Just op) (Just src) Nothing (Just dest)
     | op == "=" = do
       asmAction printer "mov" "ax" src False True
@@ -146,22 +152,23 @@ module Assembly where
     src_str <- qname src
     dest_str <- peekSname dest
     operatorCase printer (Just op_str) (Just src_str) Nothing (Just dest_str)
-  patternMatch (QuadIW op cond block) printer = do
+  patternMatch (QuadIW op cond (QuadB block)) printer = do
     op_name <- peekTname op
-    end_of_block <- qname block
+    end_of_block <- peekSname block
     if op_name == "WHILE" then do -- NO FIXUP REQUIRED
       let start_of_block = "W" ++ drop 1 end_of_block
       printer (start_of_block ++ ":\n") -- label
       patternMatch cond printer -- mov, cmp, jne/jeq/jg/jl/jle/jge 
       printer (end_of_block ++ "\n") -- turns "jxx " from cond into "jxx BX\n"
-      patternMatch block printer
+      patternMatch (QuadB block) printer
       printer ("jmp " ++ start_of_block ++ "\n" 
               ++ end_of_block ++ ": nop\n")
-    else do-- op_name == "IF"
-      patternMatch cond printer
-      printer (end_of_block ++ "\n")
-      patternMatch block printer
-      printer (end_of_block ++ ": nop\n")
+    -- else if op_name == "IF" then do -- TODO: segfault
+    --   patternMatch cond printer
+    --   printer (end_of_block ++ "\n")
+    --   patternMatch (QuadB block) printer
+    --   printer (end_of_block ++ ": nop\n")
+    else return ()
 
   patternMatch (QuadS op src) printer = do
     putStrLn "QuadS"
