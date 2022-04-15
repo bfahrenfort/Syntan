@@ -1,7 +1,7 @@
 CLASS Arrays
 {
   ARRAY arr[5];
-  ARRAY axs[4], abs[3];
+  ARRAY axs[4], als[3];
   VAR X = 2, Y = 0;
 
   arr[0] = 2;
