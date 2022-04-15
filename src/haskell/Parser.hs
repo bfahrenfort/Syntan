@@ -1,5 +1,12 @@
 -- Parser.hs
 -- Syntax analysis automaton
+-- Requirements for A option:
+-- Writing blocks to temp file (bool flag passed to generateASM)
+-- IF assembly gen and block appending
+-- PROCEDURE assembly gen and block appending
+-- [] assembly gen modifications (load+store)
+-- Error checking
+-- Make wrapper that makes the temp dir
 
 -- Allow exporting and importing symbols
 {-# LANGUAGE ForeignFunctionInterface #-}
@@ -217,9 +224,12 @@ runParser = do
     let semi_tok = Token { tname = x, tok_class = intEnum SEMI }
     (_, valid, err_stack, new_symbols) <- pushDown (stateFunc, [Left semi_tok], checkEnd) symbols printToken tokens
     if valid then do
-      asmSetup new_symbols
-      generateASM err_stack
       putStrLn "Syntan: Parse Success"
+      putStrLn "Syntan: Starting Main Assembly Generation"
+      printSymbols new_symbols
+      asmSetup new_symbols
+      generateASM err_stack Nothing
+      
     else putStrLn "Syntan: Parse Fail"
   
   -- Clean up environment (lots of memory was thrown around during imports)
