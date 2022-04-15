@@ -13,12 +13,20 @@ module Assembly where
   import TypeDeclarations
 
   foreign import capi "syntan/interface.h asm_write" asmWrite :: CString -> IO ()
+  foreign import capi "syntan/interface.h asm_f_append" asmFAppend :: CString -> IO ()
   foreign import capi "syntan/interface.h asm_data_head" dataHead :: IO ()
   foreign import capi "syntan/interface.h asm_bss" bss :: IO ()
   foreign import capi "syntan/interface.h asm_io_tail" ioTail :: IO ()
-  
-  cWrite :: String -> IO ()
-  cWrite = flip withCString asmWrite
+
+  foreign import capi "syntan/interface.h blockfile_open" blockfileOpen :: CString -> IO ()
+  foreign import capi "syntan/interface.h blockfile_write" blockAsmWrite :: CString -> IO ()
+  foreign import capi "syntan/interface.h blockfile_close" blockfileClose :: IO ()
+
+  mainWrite :: String -> IO ()
+  mainWrite = flip withCString asmWrite
+
+  blockfileWrite :: String -> IO ()
+  blockfileWrite = flip withCString blockAsmWrite
 
   -- TODO: fixups
 
@@ -55,6 +63,10 @@ module Assembly where
       asmAction printer "mov" "bx" tf False True
       printer "div bx\n"
       asmAction printer "mov" dest "ax" True False
+    | op == "<" = do
+      asmAction printer "mov" "ax" src False True
+      asmAction printer "cmp" "ax" tf False True
+      printer "jge "
   operatorCase printer (Just op) (Just src) Nothing (Just dest)
     | op == "=" = do
       asmAction printer "mov" "ax" src False True
@@ -73,6 +85,14 @@ module Assembly where
     | op == "GET" = do
       printer "call PrintString\ncall GetAnInteger\n"
       asmAction printer "mov" src "ax" True False
+  operatorCase printer Nothing (Just src) (Just off) (Just dest) = do
+    asmAction printer "mov" "ax" off False True -- Load offset
+    asmAction printer "mov" "ebx" "2" False False -- doubleword is 2 bytes
+    printer "mul bx\n"
+    asmAction printer "mov" "ecx" src False False -- Load base address
+    asmAction printer "add" "ecx" "eax" False False -- Offset the base
+    asmAction printer "mov" "bx" "ecx" False True -- Indirect
+    asmAction printer "mov" dest "bx" True False -- Store
 
 
   -- Perform operations on the assembly file based on quad type
@@ -81,10 +101,10 @@ module Assembly where
     putStrLn "QuadQQS"
     patternMatch src printer
     patternMatch tf printer
-    op_str <- peekCString $ tname op
+    op_str <- peekTname op
     src_str <- qname src
     tf_str <- qname tf
-    dest_str <- peekCString $ sname dest
+    dest_str <- peekSname dest
     operatorCase printer
                  (Just op_str) 
                  (Just src_str) 
@@ -92,85 +112,139 @@ module Assembly where
                  (Just dest_str)
   patternMatch (QuadSSS op src tf dest) printer = do
     putStrLn "QuadSSS"
-    op_str <- peekCString $ tname op
-    src_str <- peekCString $ sname src
-    tf_str <- peekCString $ sname tf
-    dest_str <- peekCString $ sname dest
+    op_str <- peekTname op
+    src_str <- peekSname src
+    tf_str <- peekSname tf
+    dest_str <- peekSname dest
     operatorCase printer (Just op_str) (Just src_str) (Just tf_str) (Just dest_str)
   patternMatch (QuadSQS op src tf dest) printer = do
     putStrLn "QuadSQS"
     patternMatch tf printer
-    op_str <- peekCString $ tname op
-    src_str <- peekCString $ sname src
+    op_str <- peekTname op
+    src_str <- peekSname src
     tf_str <- qname tf
-    dest_str <- peekCString $ sname dest
+    dest_str <- peekSname dest
     operatorCase printer (Just op_str) (Just src_str) (Just tf_str) (Just dest_str)
   patternMatch (QuadQSS op src tf dest) printer = do
     putStrLn "QuadQSS"
     patternMatch src printer
-    op_str <- peekCString $ tname op
+    op_str <- peekTname op
     src_str <- qname src
-    tf_str <- peekCString $ sname tf
-    dest_str <- peekCString $ sname dest
+    tf_str <- peekSname tf
+    dest_str <- peekSname dest
     operatorCase printer (Just op_str) (Just src_str) (Just tf_str) (Just dest_str)
   patternMatch (QuadSS op src dest) printer = do
     putStrLn "QuadSS"
-    op_str <- peekCString $ tname op
-    src_str <- peekCString $ sname src
-    dest_str <- peekCString $ sname dest
+    op_str <- peekTname op
+    src_str <- peekSname src
+    dest_str <- peekSname dest
     operatorCase printer (Just op_str) (Just src_str) Nothing (Just dest_str)
   patternMatch (QuadQS op src dest) printer = do
     putStrLn "QuadQS"
     patternMatch src printer
-    op_str <- peekCString $ tname op
+    op_str <- peekTname op
     src_str <- qname src
-    dest_str <- peekCString $ sname dest
+    dest_str <- peekSname dest
     operatorCase printer (Just op_str) (Just src_str) Nothing (Just dest_str)
+  patternMatch (QuadIW op cond block) printer = do
+    op_name <- peekTname op
+    end_of_block <- qname block
+    if op_name == "WHILE" then do -- NO FIXUP REQUIRED
+      let start_of_block = "W" ++ drop 1 end_of_block
+      printer (start_of_block ++ ":\n") -- label
+      patternMatch cond printer -- mov, cmp, jne/jeq/jg/jl/jle/jge 
+      printer (end_of_block ++ "\n") -- turns "jxx " from cond into "jxx BX\n"
+      patternMatch block printer
+      printer ("jmp " ++ start_of_block ++ "\n" 
+              ++ end_of_block ++ ": nop\n")
+    else do-- op_name == "IF"
+      patternMatch cond printer
+      printer (end_of_block ++ "\n")
+      patternMatch block printer
+      printer (end_of_block ++ ": nop\n")
+
   patternMatch (QuadS op src) printer = do
     putStrLn "QuadS"
-    op_str <- peekCString $ tname op
-    src_str <- peekCString $ sname src
+    op_str <- peekTname op
+    src_str <- peekSname src
     operatorCase printer (Just op_str) (Just src_str) Nothing Nothing
+  patternMatch (QuadQ op src) printer = do
+    putStrLn "QuadQ"
+    op_str <- peekTname op
+    patternMatch src printer
+    src_str <- qname src
+    operatorCase printer (Just op_str) (Just src_str) Nothing Nothing
+  patternMatch (QuadB block) printer = do
+    putStrLn "BLOCK, we already did this lol"
+    block_name <- peekSname block
+    withCString ("syntan_blocks_temp/" ++ block_name ++ ".qblock") asmFAppend
+
+  -- QuadP
+  patternMatch (QuadIdS src off dest) printer = do
+    putStrLn "QuadIdS"
+    src_str <- peekSname src
+    off_str <- peekSname off
+    dest_str <- peekSname dest
+    operatorCase printer Nothing (Just src_str) (Just off_str) (Just dest_str)
+  -- QuadIdQ
+  -- QuadSQ
+  -- QuadQQ
+
   patternMatch any printer = do
     putStrLn "Writing a Quad (not really)"
     printer "; there's a quad here, I know it\n"
 
-
   --FIXME: re-enable optimization after debugging if and while
-  generateASM :: [TokenOrQuad] -> IO ()
-  generateASM [Right quad] = do
+  quadLoop :: [TokenOrQuad] -> (String -> IO ()) -> IO ()
+  quadLoop [Right quad] printer = do
     --let optimized = optimizeQuad quad
-    --patternMatch optimized cWrite
-    patternMatch quad cWrite
-  generateASM (Right quad:rest) = do
+    --patternMatch optimized mainWrite 
+    patternMatch quad printer
+    printer "\n"
+  quadLoop (Right quad:rest) printer = do
     --let optimized = optimizeQuad quad
-    --patternMatch optimized cWrite
-    patternMatch quad cWrite
-    generateASM rest
-
+    --patternMatch optimized mainWrite 
+    patternMatch quad printer
+    printer "\n"
+    quadLoop rest printer
+  
+  generateASM :: [TokenOrQuad] -> Maybe Symbol -> IO ()
+  generateASM quads Nothing = quadLoop quads mainWrite
+  generateASM quads (Just block) = do
+    block_name <- peekSname block
+    withCString ("./syntan_blocks_temp/" ++ block_name ++ ".qblock") blockfileOpen
+    quadLoop quads blockfileWrite
+    blockfileClose
 
   asmAction :: (String -> IO ()) -> String -> String -> String -> Bool -> Bool -> IO ()
   asmAction printer action dest src idest isrc = do
     printer $ action ++ " " 
 
-    if idest then printer ("[" ++ dest ++ "], ") else printer $ dest ++ ", "
+    if idest then 
+      printer ("[" ++ dest ++ "], ") 
+    else 
+      printer $ dest ++ ", "
 
     if "INT" `isPrefixOf` src then
-      printer $ drop 3 src -- Literal instead of memory
-    else if isrc then printer ("[" ++ src ++ "]") else printer src
+      printer $ drop 3 src  -- OPTIMIZATION: literal instead of memory
+    else if isrc then
+      printer ("[" ++ src ++ "]")
+    else
+      printer src
 
     printer "\n"
 
 
   qname :: Quad -> IO String
-  qname (QuadQQS _ _ _ dest) = peekCString $ sname dest
-  qname (QuadSSS _ _ _ dest) = peekCString $ sname dest
-  qname (QuadSQS _ _ _ dest) = peekCString $ sname dest
-  qname (QuadQSS _ _ _ dest) = peekCString $ sname dest
-  qname (QuadSS _ _ dest) = peekCString $ sname dest
-  qname (QuadQS _ _ dest) = peekCString $ sname dest
-  qname (QuadIW op _ _) = peekCString $ tname op
-  qname (QuadB block) = peekCString $ sname block
+  qname (QuadQQS _ _ _ dest) = peekSname dest
+  qname (QuadSSS _ _ _ dest) = peekSname dest
+  qname (QuadSQS _ _ _ dest) = peekSname dest
+  qname (QuadQSS _ _ _ dest) = peekSname dest
+  qname (QuadSS _ _ dest) = peekSname dest
+  qname (QuadQS _ _ dest) = peekSname dest
+  qname (QuadIW op _ _) = peekTname op
+  qname (QuadIdS _ _ dest) = peekSname dest
+  qname (QuadB block) = peekSname block
 
 
   asmSetup :: [Symbol] -> IO ()
@@ -178,31 +252,31 @@ module Assembly where
     dataHead
     writeSymbols symbols
     putStrLn "setup symbol table"
-
     bss
     putStrLn "added bss"
 
   writeSymbols :: [Symbol] -> IO ()
-  writeSymbols [] = cWrite "\n"
+  writeSymbols [] = mainWrite "\n"
   writeSymbols (symbol:rest) 
     |  fromIntegral (sym_class symbol) == 2 -- SVAR
     || fromIntegral (sym_class symbol) == 6 = do -- SCONST
-      cWrite "\n"
-      --sym_name <- peekCString $ sname symbol
-      --sym_value <- peekCString $ value symbol
+      s_name <- peekCString $ sname symbol
+      putStrLn s_name
+      mainWrite "\n"
       asmWrite $ sname symbol
-      cWrite " DW "
+      mainWrite " DW "
       asmWrite $ value symbol
-      -- putStr sym_name
-      -- putStr " "
-      -- putStrLn sym_value
-      
+      writeSymbols rest
+    | fromIntegral (sym_class symbol) == 8 = do -- SARR
+      mainWrite "\n"
+      asmWrite $ sname symbol
+      mainWrite " TIMES "
+      asmWrite $ value symbol
+      mainWrite " DW 0"
       writeSymbols rest
     | otherwise = do
-      x <- peekCString $ sname symbol
-      putStrLn x
-      let y = fromIntegral $ sym_class symbol
-      print y
+      let val = fromIntegral $ sym_class symbol
+      print val
       writeSymbols rest
   
   asmFinalize :: IO ()
