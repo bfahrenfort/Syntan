@@ -6,5 +6,5 @@ CLASS Easy {
   Y = X * 4;
   Z = X + Y * W / V + 5;
 
-  PRINT Y
+  PRINT Z
 }
