@@ -12,3 +12,4 @@ include/stubs/
 *.vscode
 *.yaml
 *.qblock
+obj/

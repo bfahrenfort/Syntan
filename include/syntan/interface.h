@@ -13,8 +13,6 @@ void token_free(Token *t);
 Symbol* temp_add();
 Symbol* block_add();
 
-void free_list_add(Symbol *addition);
-
 void asm_write(char *input);
 void asm_f_append(char *file);
 void asm_data_head();
