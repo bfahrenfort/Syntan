@@ -3,32 +3,37 @@
 
 {-# LANGUAGE ForeignFunctionInterface #-}
 {-# LANGUAGE CApiFFI #-}
+{-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 
 module Assembly where
   import Foreign.C.Types
   import Foreign.C.String
+  import Foreign.Storable
   import Foreign.Ptr
   import Data.List (isPrefixOf)
 
   import TypeDeclarations
 
+  -- Writing and appending intermediate blocks to the main file
   foreign import capi "syntan/interface.h asm_write" asmWrite :: CString -> IO ()
   foreign import capi "syntan/interface.h asm_f_append" asmFAppend :: CString -> IO ()
   foreign import capi "syntan/interface.h asm_data_head" dataHead :: IO ()
   foreign import capi "syntan/interface.h asm_bss" bss :: IO ()
   foreign import capi "syntan/interface.h asm_io_tail" ioTail :: IO ()
 
+  -- Cheating the system to avoid fixups
+  foreign import capi "syntan/interface.h block_add" blockAdd :: IO (Ptr Symbol)
+  foreign import capi "syntan/interface.h temp_add" tempAdd :: IO (Ptr Symbol)
+
+  -- Creating and writing to an intermediate file for a block
   foreign import capi "syntan/interface.h blockfile_open" blockfileOpen :: CString -> IO ()
   foreign import capi "syntan/interface.h blockfile_write" blockAsmWrite :: CString -> IO ()
   foreign import capi "syntan/interface.h blockfile_close" blockfileClose :: IO ()
 
   mainWrite :: String -> IO ()
   mainWrite = flip withCString asmWrite
-
   blockfileWrite :: String -> IO ()
   blockfileWrite = flip withCString blockAsmWrite
-
-  -- TODO: fixups
 
   -- Look for certain quad combinations and turn them into more efficient versions
   optimizeQuad :: Quad -> Quad
@@ -41,7 +46,7 @@ module Assembly where
   optimizeQuad quad = quad
 
 
-  -- Write assembly for each arithmetic operator
+  -- Write assembly for operators
   operatorCase :: (String -> IO ()) -> Maybe String -> Maybe String -> Maybe String -> Maybe String -> IO ()
   operatorCase printer (Just op) (Just src) (Just tf) (Just dest)
     | op == "+" = do
@@ -71,13 +76,31 @@ module Assembly where
       asmAction printer "mov" "ax" src False True
       asmAction printer "cmp" "ax" tf False True
       printer "jle "
-    | otherwise = do
-      putStrLn "not in opcase"
+    | op == ">=" = do
+      asmAction printer "mov" "ax" src False True
+      asmAction printer "cmp" "ax" tf False True
+      printer "jl "
+    | op == "<=" = do
+      asmAction printer "mov" "ax" src False True
+      asmAction printer "cmp" "ax" tf False True
+      printer "jg "
+    | op == "==" = do
+      asmAction printer "mov" "ax" src False True
+      asmAction printer "cmp" "ax" tf False True
+      printer "jne "
+    | op == "!=" = do
+      asmAction printer "mov" "ax" src False True
+      asmAction printer "cmp" "ax" tf False True
+      printer "jeq "
   operatorCase printer (Just op) (Just src) Nothing (Just dest)
     | op == "=" = do
       asmAction printer "mov" "ax" src False True
       asmAction printer "mov" dest "ax" True False
   operatorCase printer (Just op) (Just src) Nothing Nothing 
+    | op == "ODD" = do
+      asmAction printer "mov" "ax" src False True
+      asmAction printer "test" "ax" "1" False False 
+      printer "jnz "
     | op == "PRINT" = do
       asmAction printer "mov" "ax" src False True
       printer "call ConvertIntegerToString\n"
@@ -102,6 +125,7 @@ module Assembly where
 
 
   -- Perform operations on the assembly file based on quad type
+  -- For operators/most reserved words 
   patternMatch :: Quad -> (String -> IO ()) -> IO ()
   patternMatch (QuadQQS op src tf dest) printer = do
     putStrLn "QuadQQS"
@@ -158,16 +182,34 @@ module Assembly where
     if op_name == "WHILE" then do -- NO FIXUP REQUIRED
       let start_of_block = "W" ++ drop 1 end_of_block
       printer (start_of_block ++ ":\n") -- label
-      patternMatch cond printer -- mov, cmp, jne/jeq/jg/jl/jle/jge 
-      printer (end_of_block ++ "\n") -- turns "jxx " from cond into "jxx BX\n"
+      patternMatch cond printer         -- mov, cmp, jne/jeq/jg/jl/jle/jge 
+      printer (end_of_block ++ "\n")    -- turns "jxx " into "jxx BX\n"
       patternMatch (QuadB block) printer
       printer ("jmp " ++ start_of_block ++ "\n" 
               ++ end_of_block ++ ": nop\n")
-    -- else if op_name == "IF" then do -- TODO: segfault
-    --   patternMatch cond printer
-    --   printer (end_of_block ++ "\n")
-    --   patternMatch (QuadB block) printer
-    --   printer (end_of_block ++ ": nop\n")
+    else if op_name == "IF" then do -- No fixup either!!
+      patternMatch cond printer
+      printer (end_of_block ++ "\n")
+      patternMatch (QuadB block) printer
+      printer (end_of_block ++ ": nop\n")
+    else return ()
+  patternMatch (QuadIW op cond quad) printer = do
+    op_name <- peekTname op
+    block <- blockAdd >>= peek
+    end_of_block <- peekCString $ sname block
+    if op_name == "WHILE" then do
+      let start_of_block = "W" ++ drop 1 end_of_block
+      printer (start_of_block ++ ":\n")
+      patternMatch cond printer
+      printer (end_of_block ++ "\n")
+      patternMatch quad printer
+      printer ("jmp " ++ start_of_block ++ "\n" 
+              ++ end_of_block ++ ": nop\n")
+    else if op_name == "IF" then do
+      patternMatch cond printer
+      printer (end_of_block ++ "\n")
+      patternMatch quad printer
+      printer (end_of_block ++ ": nop\n")
     else return ()
 
   patternMatch (QuadS op src) printer = do
@@ -258,17 +300,13 @@ module Assembly where
   asmSetup symbols = do
     dataHead
     writeSymbols symbols
-    putStrLn "setup symbol table"
     bss
-    putStrLn "added bss"
 
   writeSymbols :: [Symbol] -> IO ()
   writeSymbols [] = mainWrite "\n"
   writeSymbols (symbol:rest) 
     |  fromIntegral (sym_class symbol) == 2 -- SVAR
     || fromIntegral (sym_class symbol) == 6 = do -- SCONST
-      s_name <- peekCString $ sname symbol
-      putStrLn s_name
       mainWrite "\n"
       asmWrite $ sname symbol
       mainWrite " DW "
@@ -281,10 +319,7 @@ module Assembly where
       asmWrite $ value symbol
       mainWrite " DW 0"
       writeSymbols rest
-    | otherwise = do
-      let val = fromIntegral $ sym_class symbol
-      print val
-      writeSymbols rest
+    | otherwise = writeSymbols rest
   
   asmFinalize :: IO ()
   asmFinalize = ioTail

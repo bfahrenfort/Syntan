@@ -1,9 +1,37 @@
 -- Parser.hs
 -- Syntax analysis automaton
+{-- 
+  Name: Brandon Fahrenfort
+  Option: A
+  Featues: Compound statements, 
+           nested IF/WHILE, 
+           PROCEDURE calls, 
+           subscription with [],
+           error checking.
+  Notes:
+    - Uses a slightly modified approach on assembly gen:
+     * When popping to generate a quad, it does not immediately generate the assembly.
+     * Instead, it waits until a list of quads are popped enclosed in { }, 
+     *  called a 'Block' pattern in my code (See the pattern synonyms in Helpers.hs).
+     * Then, it generates the assembly (optimizing as needed), writes it to a .qblock file,
+     *  and discards the quads, pushing a QuadB (see TypeDeclarations.hs) with the name
+     *  of the file to the stack.
+     * When it pops the enclosing structure, it writes the preliminaries (a label
+     *  and a compare for WHILE, just a compare for IF, a label for PROCEDURE...),
+     *  appends the block file of the same name, and writes the closing ('jmp',
+     *  'ret', end stack labels etc). This means three things:
+     *   * NO FIXUP STACKS REQUIRED. Pretty cool, right.
+     *   * Better optimization potential. I have access to all quads in a block
+     *      instead of just one - That opens up many more possibilities.
+     *   * Effortless nesting. A block can contain other control structures,
+     *      which have their own blocks, which have their own control structures
+     *     with blocks, etc.
+     * What I'm saying is that I'm very proud of this design.
+     * The one downside is that the nested block naming is a bit inconsistent inside 
+        the assembly file (you might have b17 inside of b3 instead of b2 inside b3),
+        but who's looking at that?
+--}
 -- Requirements for A option:
--- Writing blocks to temp file (bool flag passed to generateASM)
--- Single-quad nesting for IF/WHILE
--- IF assembly gen and block appending
 -- PROCEDURE assembly gen and block appending
 -- [] assembly gen modifications (load+store)
 -- Error checking
@@ -11,6 +39,7 @@
 
 -- Allow exporting and importing symbols
 {-# LANGUAGE ForeignFunctionInterface #-}
+{-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 
 module Parser where
 
@@ -29,7 +58,7 @@ import Assembly
 
 -- The main focus of the program
 -- It should be noted that I use 'Skip' to denote when to collapse
--- Semicolons are worthless and thus are thrown out
+-- Semicolons are worthless and thus are thrown out, etc
                     --      ;,      =,    +/-,      (,      ),    *//,     IF,   THEN,    ODD,  relop,      {,      },   CALL,  WHILE,     DO,      ,,  CLASS,   VAR,    PROC,  CONST,  PRINT,    GET,   XARR,     LS,     RS
 precedence_matrix = [[   Skip, Yields,  Error,  Error,  Error,  Error, Yields,  Error,  Error,  Error,  Error,  Takes, Yields, Yields,  Error,  Error, Yields, Yields, Yields, Yields, Yields, Yields, Yields, Yields,  Error ], -- ;
                      [  Takes,  Error, Yields, Yields,  Error, Yields,  Error,  Error,  Error,  Error,  Error,  Takes,  Error,  Error,  Error,  Takes,  Error,  Error,  Error,  Error,  Error,  Error,  Error, Yields,  Error ], -- =
@@ -95,7 +124,7 @@ generateQuad stk@(tok_or_quad:rest) quad_stk symbols counter
       let action = precedence_matrix!!fromIntegral stk_idx!!fromIntegral quad_idx
       
       -- If stack operator yields to quad operator, we found the head
-      -- FIXME: if there are any bugs in this entire program they're in these 25 lines
+      -- ...if there are any bugs in this entire program they're in these 25 lines
       if action == Yields then do
         if idx tok_or_quad == toIndex ODD 
           || idx tok_or_quad == toIndex IF 
@@ -222,12 +251,11 @@ runParser = do
   
   -- Pass and begin parse
   semi_str <- withCString ";" $ \ x -> do -- Stack-memory C string
-    let semi_tok = Token { tname = x, tok_class = intEnum SEMI }
+    let semi_tok = Token { tname = x, tok_class = intEnum SEMI } -- To start the stack
     (_, valid, err_stack, new_symbols) <- pushDown (stateFunc, [Left semi_tok], checkEnd) symbols printToken tokens
     if valid then do
       putStrLn "Syntan: Parse Success"
       putStrLn "Syntan: Starting Main Assembly Generation"
-      printSymbols new_symbols
       asmSetup new_symbols
       generateASM err_stack Nothing
       
