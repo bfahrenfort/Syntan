@@ -148,7 +148,7 @@ module Helpers where
     putStr ", -, "
     printQuad dest
     putStr ")"
-  printQuad Invalid = putStrLn "invalid quad"
+  printQuad Invalid = putStr "(Invalid)"
 
   printTokenOrQuad :: TokenOrQuad -> IO ()
   printTokenOrQuad (Left t) = printToken t
@@ -263,6 +263,8 @@ module Helpers where
   toQuad [Left xproc, Left tproc, Left lp, Left rp, Right block] symbols = do
     proc_sym <- symbolFromToken tproc symbols
     return (QuadP xproc proc_sym block, symbols)
+  toQuad [Left lp, Right quad, Left rp] symbols |  tok_class lp == intEnum LP
+                                                && tok_class rp == intEnum RP = return (quad, symbols)
   toQuad _ symbols = return (Invalid, symbols)
 
   -- Pattern match helper
