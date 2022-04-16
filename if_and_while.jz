@@ -1,0 +1,34 @@
+CLASS IfWhile
+{
+  VAR X, Y, Z, COL = 0, ROW = 0;
+
+  GET X;
+  GET Y;
+  GET Z;
+
+  /* 
+   * If Z is between X and Y, print Z.
+   */
+  IF Z < X THEN
+    IF Z > Y THEN
+      PRINT Z;
+  IF Z > X THEN
+    IF Z < Y THEN
+      PRINT Z;
+
+  /* Print column 0, row 0; column 0, row 1; ... column 4, row 4 */
+  WHILE COL < 5 DO
+  {
+    ROW = 0;
+
+    WHILE ROW < 5 DO
+    {
+      PRINT ROW;
+      PRINT COL;
+
+      ROW = ROW + 1
+    }
+
+    COL = COL + 1
+  }
+}
