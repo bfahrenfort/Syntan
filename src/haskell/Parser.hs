@@ -32,8 +32,6 @@
         but who's looking at that?
 --}
 -- Requirements for A option:
--- PROCEDURE assembly gen and block appending
--- [] assembly gen modifications (load+store)
 -- Error checking
 -- Make wrapper that makes the temp dir
 
