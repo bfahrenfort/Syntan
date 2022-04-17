@@ -97,6 +97,23 @@ module Assembly where
       asmAction printer "mov" "ax" src False True
       asmAction printer "cmp" "ax" tf False True
       printer "jeq "
+    | op == "LOAD" = do
+      asmAction printer "mov" "ax" tf False True -- Load offset
+      asmAction printer "mov" "ebx" "2" False False -- doubleword is 2 bytes
+      printer "mul bx\n"
+      asmAction printer "mov" "ecx" src False False -- Load base address
+      asmAction printer "add" "ecx" "eax" False False -- Offset the base
+      asmAction printer "mov" "bx" "ecx" False True -- Indirect
+      asmAction printer "mov" dest "bx" True False -- Store
+    | op == "STORE" = do
+      asmAction printer "mov" "ax" tf False True -- Load offset
+      asmAction printer "mov" "ebx" "2" False False -- Mul 2
+      printer "mul bx\n"
+      asmAction printer "mov" "ecx" src False False -- Load base
+      asmAction printer "add" "ecx" "eax" False False -- Offset base
+      asmAction printer "mov" "ax" dest False True -- Load value
+      asmAction printer "mov" "ecx" "ax" True False -- Store value
+
   operatorCase printer (Just op) (Just src) Nothing (Just dest)
     | op == "=" = do
       asmAction printer "mov" "ax" src False True
@@ -119,14 +136,6 @@ module Assembly where
     | op == "GET" = do
       printer "call PrintString\ncall GetAnInteger\n"
       asmAction printer "mov" src "ax" True False
-  operatorCase printer Nothing (Just src) (Just off) (Just dest) = do
-    asmAction printer "mov" "ax" off False True -- Load offset
-    asmAction printer "mov" "ebx" "2" False False -- doubleword is 2 bytes
-    printer "mul bx\n"
-    asmAction printer "mov" "ecx" src False False -- Load base address
-    asmAction printer "add" "ecx" "eax" False False -- Offset the base
-    asmAction printer "mov" "bx" "ecx" False True -- Indirect
-    asmAction printer "mov" dest "bx" True False -- Store
 
 
   -- Perform operations on the assembly file based on quad type
@@ -242,17 +251,47 @@ module Assembly where
     blockfileWrite "ret\n"
     blockfileClose
     withCString proc_name procedureAdd
-    
   patternMatch (QuadIdS src off dest) printer = do
     putStrLn "QuadIdS"
     src_str <- peekSname src
     off_str <- peekSname off
     dest_str <- peekSname dest
-    operatorCase printer Nothing (Just src_str) (Just off_str) (Just dest_str)
-  -- QuadIdQ
-  -- QuadSQ
-  -- QuadQQ
-
+    operatorCase printer (Just "LOAD") (Just src_str) (Just off_str) (Just dest_str)
+  patternMatch (QuadIdQ src off dest) printer = do
+    putStrLn "QuadIdS"
+    src_str <- peekSname src
+    patternMatch off printer
+    off_str <- qname off
+    dest_str <- peekSname dest
+    operatorCase printer (Just "LOAD") (Just src_str) (Just off_str) (Just dest_str)
+  patternMatch (QuadSQ op src (QuadIdS arr off _)) printer = do
+    putStrLn "QuadSQIdS"
+    src_str <- peekSname src
+    arr_str <- peekSname arr
+    off_str <- peekSname off
+    operatorCase printer (Just "STORE") (Just arr_str) (Just off_str) (Just src_str)
+  patternMatch (QuadSQ op src (QuadIdQ arr off _)) printer = do
+    putStrLn "QuadSQIdQ"
+    src_str <- peekSname src
+    arr_str <- peekSname arr
+    patternMatch off printer
+    off_str <- qname off
+    operatorCase printer (Just "STORE") (Just arr_str) (Just off_str) (Just src_str)
+  patternMatch (QuadQQ op src (QuadIdS arr off _)) printer = do
+    putStrLn "QuadQQIdS"
+    patternMatch src printer
+    src_str <- qname src
+    arr_str <- peekSname arr
+    off_str <- peekSname off
+    operatorCase printer (Just "STORE") (Just arr_str) (Just off_str) (Just src_str)
+  patternMatch (QuadQQ op src (QuadIdQ arr off _)) printer = do
+    putStrLn "QuadQQIdQ"
+    patternMatch src printer
+    src_str <- qname src
+    arr_str <- peekSname arr
+    patternMatch off printer
+    off_str <- qname off
+    operatorCase printer (Just "STORE") (Just arr_str) (Just off_str) (Just src_str)
   patternMatch any printer = do
     putStrLn "Writing a Quad (not really)"
     printer "; there's a quad here, I know it\n"
