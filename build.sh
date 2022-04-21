@@ -1,6 +1,6 @@
 #!/usr/bin/bash
 
-mkdir bin
+mkdir -p bin
 ghc -c -O src/haskell/Stack.hs -outputdir tmp -stubdir include/stubs -Iinclude -itmp
 ghc -c -O src/haskell/PDA.hs -outputdir tmp -stubdir include/stubs -Iinclude -itmp
 ghc -c -O src/haskell/TypeDeclarations.hs -outputdir tmp -stubdir include/stubs -Iinclude -itmp
