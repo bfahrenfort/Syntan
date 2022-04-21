@@ -1,0 +1,13 @@
+CLASS ProcFunc
+{
+  VAR Y;
+
+  PROCEDURE aProcedure()
+  {
+    VAR X;
+
+    X = 5
+  }
+
+  Y = CALL aProcedure()
+}

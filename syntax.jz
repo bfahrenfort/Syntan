@@ -1,0 +1,6 @@
+CLASS syntax {
+  VAR X = 2, Y = 5;
+
+  /* Illegal expression */
+  Y = PRINT X
+}
