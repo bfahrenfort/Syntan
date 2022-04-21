@@ -142,7 +142,6 @@ module Assembly where
   -- For operators/most reserved words 
   patternMatch :: Quad -> (String -> IO ()) -> IO ()
   patternMatch (QuadQQS op src tf dest) printer = do
-    putStrLn "QuadQQS"
     patternMatch src printer
     patternMatch tf printer
     op_str <- peekTname op
@@ -155,14 +154,12 @@ module Assembly where
                  (Just tf_str) 
                  (Just dest_str)
   patternMatch (QuadSSS op src tf dest) printer = do
-    putStrLn "QuadSSS"
     op_str <- peekTname op
     src_str <- peekSname src
     tf_str <- peekSname tf
     dest_str <- peekSname dest
     operatorCase printer (Just op_str) (Just src_str) (Just tf_str) (Just dest_str)
   patternMatch (QuadSQS op src tf dest) printer = do
-    putStrLn "QuadSQS"
     patternMatch tf printer
     op_str <- peekTname op
     src_str <- peekSname src
@@ -170,7 +167,6 @@ module Assembly where
     dest_str <- peekSname dest
     operatorCase printer (Just op_str) (Just src_str) (Just tf_str) (Just dest_str)
   patternMatch (QuadQSS op src tf dest) printer = do
-    putStrLn "QuadQSS"
     patternMatch src printer
     op_str <- peekTname op
     src_str <- qname src
@@ -178,13 +174,11 @@ module Assembly where
     dest_str <- peekSname dest
     operatorCase printer (Just op_str) (Just src_str) (Just tf_str) (Just dest_str)
   patternMatch (QuadSS op src dest) printer = do
-    putStrLn "QuadSS"
     op_str <- peekTname op
     src_str <- peekSname src
     dest_str <- peekSname dest
     operatorCase printer (Just op_str) (Just src_str) Nothing (Just dest_str)
   patternMatch (QuadQS op src dest) printer = do
-    putStrLn "QuadQS"
     patternMatch src printer
     op_str <- peekTname op
     src_str <- qname src
@@ -227,22 +221,18 @@ module Assembly where
     else return ()
 
   patternMatch (QuadS op src) printer = do
-    putStrLn "QuadS"
     op_str <- peekTname op
     src_str <- peekSname src
     operatorCase printer (Just op_str) (Just src_str) Nothing Nothing
   patternMatch (QuadQ op src) printer = do
-    putStrLn "QuadQ"
     op_str <- peekTname op
     patternMatch src printer
     src_str <- qname src
     operatorCase printer (Just op_str) (Just src_str) Nothing Nothing
   patternMatch (QuadB block) printer = do
-    putStrLn "BLOCK, we already did this lol"
     block_name <- peekSname block
     withCString ("syntan_blocks_temp/" ++ block_name ++ ".qblock") asmFAppend
   patternMatch (QuadP xproc procedure (QuadB block)) printer = do
-    putStrLn "QuadP"
     proc_name <- peekSname procedure
     block_name <- peekSname block
     withCString ("./syntan_blocks_temp/" ++ proc_name ++ ".proc") blockfileOpen
@@ -252,40 +242,34 @@ module Assembly where
     blockfileClose
     withCString proc_name procedureAdd
   patternMatch (QuadIdS src off dest) printer = do
-    putStrLn "QuadIdS"
     src_str <- peekSname src
     off_str <- peekSname off
     dest_str <- peekSname dest
     operatorCase printer (Just "LOAD") (Just src_str) (Just off_str) (Just dest_str)
   patternMatch (QuadIdQ src off dest) printer = do
-    putStrLn "QuadIdS"
     src_str <- peekSname src
     patternMatch off printer
     off_str <- qname off
     dest_str <- peekSname dest
     operatorCase printer (Just "LOAD") (Just src_str) (Just off_str) (Just dest_str)
   patternMatch (QuadSQ op src (QuadIdS arr off _)) printer = do
-    putStrLn "QuadSQIdS"
     src_str <- peekSname src
     arr_str <- peekSname arr
     off_str <- peekSname off
     operatorCase printer (Just "STORE") (Just arr_str) (Just off_str) (Just src_str)
   patternMatch (QuadSQ op src (QuadIdQ arr off _)) printer = do
-    putStrLn "QuadSQIdQ"
     src_str <- peekSname src
     arr_str <- peekSname arr
     patternMatch off printer
     off_str <- qname off
     operatorCase printer (Just "STORE") (Just arr_str) (Just off_str) (Just src_str)
   patternMatch (QuadQQ op src (QuadIdS arr off _)) printer = do
-    putStrLn "QuadQQIdS"
     patternMatch src printer
     src_str <- qname src
     arr_str <- peekSname arr
     off_str <- peekSname off
     operatorCase printer (Just "STORE") (Just arr_str) (Just off_str) (Just src_str)
   patternMatch (QuadQQ op src (QuadIdQ arr off _)) printer = do
-    putStrLn "QuadQQIdQ"
     patternMatch src printer
     src_str <- qname src
     arr_str <- peekSname arr
