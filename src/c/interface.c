@@ -283,14 +283,11 @@ void asm_io_tail()
   fflush(asm_file);
 }
 
-void parser_init(char *tokens, char *symbols)
+void parser_init(char *tokens, char *symbols, char *assembly)
 {
   token_file = fopen(tokens, "r");
   symbol_file = fopen(symbols, "r");
-
-  char *asm_name = format_output(tokens, ".asm");
-  asm_file = fopen(asm_name, "w");
-  free(asm_name);
+  asm_file = fopen(assembly, "w");
 
   char c;
 
