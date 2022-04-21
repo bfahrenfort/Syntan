@@ -1,3 +1,5 @@
+// Syntan.c
+
 #include <stdio.h>
 #include "syntan/interface.h"
 #include "syntan/lexical.h"
