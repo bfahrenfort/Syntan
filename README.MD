@@ -1,5 +1,5 @@
 # Syntan
-The syntax analyzer and assembly generation portion of the semester project for the senior level Compilers course.
+The syntax analyzer and assembly generation portion of the semester project for the senior level Compilers course. Dear lord, the sheer amount of wonky impure Haskell in this project has me staggering every time I look over it.
 ## Students
 DO NOT USE ANY OF MY CODE. I am not responsible for any academic integrity violations you may incur.
 ## Description
