@@ -113,6 +113,18 @@ void parser_init(char *tokens, char *symbols)
 {
   token_file = fopen(tokens, "r");
   symbol_file = fopen(symbols, "r");
+
+  char c;
+  do
+  {
+    c = fgetc(token_file);
+  } while(c != '\n'); // Skip first line
+
+  c = '\0';
+  do
+  {
+    c = fgetc(symbol_file);
+  } while(c != '\n'); // Skip first line
 }
 
 void parser_release()
