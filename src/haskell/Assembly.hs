@@ -280,17 +280,16 @@ module Assembly where
     putStrLn "Writing a Quad (not really)"
     printer "; there's a quad here, I know it\n"
 
-  --FIXME: re-enable optimization after debugging if and while
   quadLoop :: [TokenOrQuad] -> (String -> IO ()) -> IO ()
   quadLoop [Right quad] printer = do
-    --let optimized = optimizeQuad quad
-    --patternMatch optimized mainWrite 
-    patternMatch quad printer
+    let optimized = optimizeQuad quad
+    patternMatch optimized printer
+    --patternMatch quad printer
     printer "\n"
   quadLoop (Right quad:rest) printer = do
-    --let optimized = optimizeQuad quad
-    --patternMatch optimized mainWrite 
-    patternMatch quad printer
+    let optimized = optimizeQuad quad
+    patternMatch optimized printer
+    --patternMatch quad printer
     printer "\n"
     quadLoop rest printer
   
