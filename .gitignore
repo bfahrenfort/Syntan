@@ -6,8 +6,8 @@ cabal-haskell/
 *.sym
 include/stubs/
 
+*output.txt
 *_jz_lex.asm
 *.o
 *.vscode
-*.txt
 *.yaml
