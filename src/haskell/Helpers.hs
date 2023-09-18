@@ -78,6 +78,18 @@ module Helpers where
     putStr ", -, "
     printSymbol dest
     putStr ")"
+  printQuad (QuadQ op src ) = do
+    putStr "("
+    printToken op
+    putStr ", "
+    printQuad src
+    putStr ", -, -)"
+  printQuad (QuadS op src ) = do
+    putStr "("
+    printToken op
+    putStr ", "
+    printSymbol src
+    putStr ", -, -)"
   printQuad (QuadIW iwop cond stmt) = do
     putStr "("
     printToken iwop
@@ -139,6 +151,11 @@ module Helpers where
   -- Used in combination with tok_class guards to identify code blocks
   pattern Block lfst lmid lend <- lfst : (initPlusLast -> Just (lmid, lend))
 
+  pattern Program lschwarz lres lname lfst lmid lend <- lschwarz
+                                                      : lres
+                                                      : lname
+                                                      : lfst
+                                                      : (initPlusLast -> Just (lmid, lend))
   -- Lookup a symbol in the table by name or value
   lookupSymbol :: String -> [Symbol] -> IO (Maybe Symbol)
   lookupSymbol _ [] = do return Nothing
@@ -166,4 +183,11 @@ module Helpers where
   -- Is this Token/Quad a terminal? (operator, part of the precedence matrix)
   isTerminal :: TokenOrQuad -> Bool -- Filter for filterTop
   isTerminal e = idx e >= 0
-  
+
+  -- Is this Token a terminal? (operator, part of the precedence matrix)
+  isTerminalToken :: Token -> Bool -- Filter for filterTop
+  isTerminalToken e = idx (Left e) >= 0
+
+  isBlock :: TokenOrQuad -> Bool
+  isBlock (Right (QuadB _)) = True
+  isBlock _ = False

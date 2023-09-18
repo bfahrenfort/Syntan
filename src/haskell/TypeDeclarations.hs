@@ -56,8 +56,8 @@ module TypeDeclarations where
             | QuadSS  Token Symbol        Symbol --   =,  Y,  -,  X
             | QuadQS  Token   Quad        Symbol --   =, T1,  -,  X
             | QuadIW  Token   Quad   Quad        --  IF, T1, T2,  -
-            -- | QuadS   Token Symbol               -- ODD,  X
-            -- | QuadQ   Token Quad                 -- ODD, T1
+            | QuadS   Token Symbol               -- ODD,  X
+            | QuadQ   Token Quad                 -- ODD, T1
             | QuadB                       Symbol -- (asm)
             | QuadP   Token Symbol   Quad        -- PROCEDURE, Multiply, B1
             | Invalid
