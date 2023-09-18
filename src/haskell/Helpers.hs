@@ -182,73 +182,73 @@ module Helpers where
   idx (Right _) = -2
 
   -- Analyze a stack of quads/tokens to turn it into a real quad
-  toQuad :: Stack TokenOrQuad -> [Symbol] -> IO Quad
+  toQuad :: Stack TokenOrQuad -> [Symbol] -> IO (Quad, [Symbol])
   toQuad [Left lft, Left mid, Left rt] symbols
     | tok_class mid == intEnum ASSIGN = do
       dest_sym <- symbolFromToken lft symbols
       src_sym <- symbolFromToken rt symbols
-      return $ QuadSS mid src_sym dest_sym                -- =, src_sym, -, dest_sym
+      return (QuadSS mid src_sym dest_sym, symbols)                -- =, src_sym, -, dest_sym
     | otherwise = do
       src_sym <- symbolFromToken lft symbols
       tf_sym <- symbolFromToken rt symbols
       temp <- tempAdd >>= peek
-      return $ QuadSSS mid src_sym tf_sym temp            -- +, src_sym, tf_sym, temp
+      return (QuadSSS mid src_sym tf_sym temp, temp:symbols)            -- +, src_sym, tf_sym, temp
   toQuad [Left lft, Left mid, Right rt] symbols
     | tok_class mid == intEnum ASSIGN = do
       dest_sym <- symbolFromToken lft symbols
-      return $ QuadQS mid rt dest_sym                    -- =, rt, -, dest_sym,
+      return (QuadQS mid rt dest_sym, symbols)                    -- =, rt, -, dest_sym,
     | otherwise = do
       src_sym <- symbolFromToken lft symbols
       temp <- tempAdd >>= peek
-      return $ QuadSQS mid src_sym rt temp               -- +, src_sym, rt (actually tf), temp
+      return (QuadSQS mid src_sym rt temp, temp:symbols)               -- +, src_sym, rt (actually tf), temp
   toQuad [Right lft, Left mid, Left rt] symbols
     |  tok_class mid == intEnum ASSIGN = do
       src_sym <- symbolFromToken rt symbols
-      return $ QuadSQ mid src_sym lft                         -- =, src, -, arr[0]
+      return (QuadSQ mid src_sym lft, symbols)                         -- =, src, -, arr[0]
     | otherwise                       = do
       tf_sym <- symbolFromToken rt symbols
       temp <- tempAdd >>= peek
-      return $ QuadQSS mid lft tf_sym temp               -- +, lft, tf_sym, temp
+      return (QuadQSS mid lft tf_sym temp, temp:symbols)               -- +, lft, tf_sym, temp
   toQuad [Right lft, Left mid, Right rt] symbols
     | tok_class mid == intEnum ASSIGN = do
-      return $ QuadQQ mid rt lft                           -- =, T1, -, arr[0]
+      return (QuadQQ mid rt lft, symbols)                           -- =, T1, -, arr[0]
     | otherwise                       = do
       temp <- tempAdd >>= peek
-      return $ QuadQQS mid lft rt temp                      -- +, lft, rt, temp
+      return (QuadQQS mid lft rt temp, temp:symbols)                      -- +, lft, rt, temp
   toQuad [Left op, Left src] symbols = do
     src_sym <- symbolFromToken src symbols
-    return $ QuadS op src_sym                            -- ODD, src, -, -
+    return (QuadS op src_sym, symbols)                            -- ODD, src, -, -
   toQuad [Left op, Right src] symbols = do
-    return $ QuadQ op src                                -- ODD, src, -. -
+    return (QuadQ op src, symbols)                                -- ODD, src, -. -
   toQuad [Left lft, Left ml, Left mr, Left rt] symbols 
     |  tok_class lft == intEnum CALL
     && tok_class mr  == intEnum LP
     && tok_class rt  == intEnum RP = do
       src_sym <- symbolFromToken ml symbols
-      return $ QuadS lft src_sym                        -- PROCEDURE, Multiply, B1
+      return (QuadS lft src_sym, symbols)                        -- PROCEDURE, Multiply, B1
     |  tok_class lft == intEnum IDENT
     && tok_class ml  == intEnum LS
     && tok_class rt  == intEnum RS = do -- Subscripting
       src_sym <- symbolFromToken lft symbols
       idx_sym <- symbolFromToken mr symbols
-      return $ QuadIdS src_sym idx_sym                     -- arr, INT0
+      return (QuadIdS src_sym idx_sym, symbols)                     -- arr, INT0
   toQuad [Left lft, Left ml, Right mr, Left rt] symbols |  tok_class lft == intEnum IDENT
                                                         && tok_class ml  == intEnum LS
                                                         && tok_class rt  == intEnum RS = do
     src_sym <- symbolFromToken lft symbols
-    return $ QuadIdQ src_sym mr
+    return (QuadIdQ src_sym mr, symbols)
 
   toQuad [Left iwop, Right cond, Left thenop, Right stmt] symbols = do
-    return $ QuadIW iwop cond stmt
+    return (QuadIW iwop cond stmt, symbols)
   toQuad (Block (Left lb) quads (Left rb)) symbols |  tok_class lb == intEnum LB
                                                   && tok_class rb == intEnum RB = do
     generateASM quads
     block <- blockAdd >>= peek
-    return $ QuadB block
+    return (QuadB block, symbols)
   toQuad [Left xproc, Left tproc, Left lp, Left rp, Right block] symbols = do
     proc_sym <- symbolFromToken tproc symbols
-    return $ QuadP xproc proc_sym block
-  toQuad _ _ = return Invalid
+    return (QuadP xproc proc_sym block, symbols)
+  toQuad _ symbols = return (Invalid, symbols)
 
   -- Pattern match helper
   initPlusLast :: [a] -> Maybe ([a], a)
