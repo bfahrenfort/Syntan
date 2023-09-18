@@ -24,7 +24,7 @@ import Assembly
 -- Semicolons are worthless and thus are thrown out
                     --      ;,      =,    +/-,      (,      ),    *//,     IF,   THEN,    ODD,  relop,      {,      },   CALL,  WHILE,     DO,      ,,  CLASS,   VAR,    PROC,  CONST,  PRINT,    GET 
 precedence_matrix = [[   Skip, Yields,  Error,  Error,  Error,  Error, Yields,  Error,  Error,  Error,  Error,  Takes, Yields, Yields,  Error,  Error, Yields, Yields, Yields, Yields, Yields, Yields ], -- ; (interaction w }?)
-                     [  Takes, Yields, Yields, Yields,  Error, Yields,  Error,  Error,  Error,  Error,  Error,  Takes,  Error,  Error,  Error,  Takes,  Error,  Error,  Error,  Error,  Error,  Error ], -- =
+                     [  Takes,  Error, Yields, Yields,  Error, Yields,  Error,  Error,  Error,  Error,  Error,  Takes,  Error,  Error,  Error,  Takes,  Error,  Error,  Error,  Error,  Error,  Error ], -- =
                      [  Takes,  Error,  Takes, Yields,  Takes, Yields,  Error,  Takes,  Error,  Takes,  Error,  Takes,  Error,  Error,  Error,  Takes,  Error,  Error,  Error,  Error,  Error,  Error ], -- +/-
                      [  Error,  Error, Yields, Yields,  Equal, Yields,  Error,  Error,  Error,  Error,  Error,  Error, Yields,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error ], -- (
                      [  Takes,  Error,  Takes,  Error,  Takes,  Takes,  Error,  Takes,  Error,  Takes, Yields,  Takes,  Error,  Error,  Takes,  Takes,  Error,  Error,  Takes,  Error, Yields, Yields ], -- ) (Interaction with {?)
@@ -57,27 +57,22 @@ generateQuad stk@(tok_or_quad:rest) [] symbols counter = do
 generateQuad stk@(tok_or_quad:rest) quad_stk symbols counter 
   |  idx (top quad_stk) == toIndex XVAR 
   || idx (top quad_stk) == toIndex XCONST = do
-    putStr "case 1 "
+    putStr "case declaration "
     printTokenOrQuad tok_or_quad
     putStrLn ""
     return stk -- declaration statement
-  | idx tok_or_quad < 0 && counter < 3 = do
-    putStr "case 2 "
-    printTokenOrQuad tok_or_quad
-    putStrLn ""
-    generateQuad rest (push quad_stk tok_or_quad) 
-                      symbols 
-                      (counter + 1)
   | otherwise = do
-    putStr "case 4 "
+    putStr "case comparison "
     printTokenOrQuad tok_or_quad
     putStrLn ""
+
     let top_term = fromJust $ filterTop stk isTerminal
     let stk_idx = idx top_term
-    print stk_idx
-    let quad_idx = maybe (-1) idx $ filterTop quad_stk isTerminal
+    let m_top_quad_term = filterTop quad_stk isTerminal
+    let quad_idx = maybe (-1) idx m_top_quad_term
 
-    if quad_idx == -1 then do
+    if counter < 2 || idx tok_or_quad == -1 then do
+      putStrLn "Add the above to quad_stk"
       generateQuad rest (push quad_stk tok_or_quad) symbols $ counter + 1
     else do
       putStrLn ""
@@ -86,7 +81,7 @@ generateQuad stk@(tok_or_quad:rest) quad_stk symbols counter
       putStr "Checking row "
       printTokenOrQuad top_term
       putStr " against col "
-      printTokenOrQuad . fromJust $ filterTop quad_stk isTerminal
+      printTokenOrQuad $ fromJust m_top_quad_term
       putStrLn ""
 
       let action = precedence_matrix!!fromIntegral stk_idx!!fromIntegral quad_idx
@@ -97,11 +92,9 @@ generateQuad stk@(tok_or_quad:rest) quad_stk symbols counter
         putStrLn "Found head, stack:"
         printTokenOrQuad $ Right quad
         putStrLn ""
-        printTokensAndQuads $ tok_or_quad:rest
+        printTokensAndQuads (tok_or_quad:rest)
 
-        return $ push 
-          (tok_or_quad:rest) 
-          (Right quad)
+        return $ push (tok_or_quad:rest) $ Right quad
       else generateQuad rest (push quad_stk tok_or_quad) symbols $ counter + 1 -- Equal precedence
 
 -- Lookup and push
@@ -157,6 +150,7 @@ stateFunc tokens@(tok:_) stk symbols = do
         else return (False, new_stk)
       else if action == Skip then do
         putStrLn "Skippin"
+        putStrLn ""
         return (False, stk)
       else do
         putStrLn "tinvalid"
@@ -206,7 +200,7 @@ runParser = do
   semi_str <- withCString ";" $ \ x -> do -- Stack-memory C string
     let semi_tok = Token { tname = x, tok_class = intEnum SEMI }
     (valid, err_stack) <- pushDown (stateFunc, [Left semi_tok], checkEnd) symbols printToken tokens
-    if valid then putStrLn "Syntan: Parse Success"
+    if valid then putStrLn "Syntan: Parse Success" -- TODO: bad logic
     else putStrLn "Syntan: Parse Fail"
   
   -- Clean up environment (lots of memory was thrown around during imports)
