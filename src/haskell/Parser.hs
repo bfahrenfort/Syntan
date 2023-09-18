@@ -2,6 +2,7 @@
 -- Syntax analysis automaton
 -- Requirements for A option:
 -- Writing blocks to temp file (bool flag passed to generateASM)
+-- Single-quad nesting for IF/WHILE
 -- IF assembly gen and block appending
 -- PROCEDURE assembly gen and block appending
 -- [] assembly gen modifications (load+store)

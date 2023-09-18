@@ -159,6 +159,7 @@ void blockfile_write(char *input)
 void blockfile_close()
 {
   fclose(block_file);
+  block_file = NULL;
 }
 
 void asm_write(char *input)
@@ -169,17 +170,18 @@ void asm_write(char *input)
 void asm_f_append(char *file)
 {
   FILE *inf;
+  FILE *of = block_file == NULL ? asm_file : block_file;
 
   if((inf = fopen(file, "r")) != NULL)
   {
     char buff[128];
 
-    fputc('\n', asm_file);
+    fputc('\n', of);
 
     int bytes_read;
     while((bytes_read = fread(buff, 1, 128, inf)) > 0)
     {
-      fwrite(buff, 1, bytes_read, asm_file);
+      fwrite(buff, 1, bytes_read, of);
     }
 
     fclose(inf);
@@ -211,16 +213,25 @@ void parser_init(char *tokens, char *symbols)
   free(asm_name);
 
   char c;
-  do
-  {
-    c = fgetc(token_file);
-  } while(c != '\n'); // Skip first line
 
-  c = '\0';
-  do
+  if(token_file && symbol_file)
   {
-    c = fgetc(symbol_file);
-  } while(c != '\n'); // Skip first line
+    do
+    {
+      c = fgetc(token_file);
+    } while(c != '\n'); // Skip first line
+
+    c = '\0';
+    do
+    {
+      c = fgetc(symbol_file);
+    } while(c != '\n'); // Skip first line
+  }
+  else
+  {
+    printf("Token or Symbol file not found\n");
+    exit(1);
+  }
 }
 
 void parser_release()
