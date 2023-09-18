@@ -1,0 +1,8 @@
+CLASS InvalidQuad {
+  VAR X, Y;
+
+  /* No parameter passing yet */
+  PROCEDURE ChangeX(Y + 5) {
+    X = 5;
+  }
+}
