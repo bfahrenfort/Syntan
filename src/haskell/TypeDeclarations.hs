@@ -1,3 +1,6 @@
+-- TypeDeclarations.hs
+-- The types for the program
+
 module TypeDeclarations where
 
   import Foreign.C.Types
