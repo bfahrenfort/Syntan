@@ -1,10 +1,10 @@
-bin/**
-tmp/**
-lib/**
-cabal-haskell/**
+bin/
+tmp/
+lib/
+cabal-haskell/
 *.lex
 *.sym
-include/stubs/**
+include/stubs/
 
 *.vscode
 *.txt
