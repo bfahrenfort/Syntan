@@ -17,12 +17,22 @@ typedef struct FreeList_t
 } FreeList;
 FreeList *free_list = NULL;
 
+typedef struct ProcedureAppend_t
+{
+  char *proc;
+  struct ProcedureAppend_t *next;
+} ProcedureAppend;
+ProcedureAppend *append_list = NULL;
+
 // Comma-separated C-readable byte value files as char arrays for appending
 const char data_head[] = { 
   #include "../../data_head.xxd" 
   }; // IO constants etc
 const char bss[] = { 
   #include "../../bss.xxd" 
+  }; // 'global _start' etc
+const char exit_symbol[] = { 
+  #include "../../asm_exit.xxd" 
   }; // 'global _start' etc
 const char io_tail[] = { 
   #include "../../io_tail.xxd" 
@@ -216,6 +226,54 @@ void asm_data_head()
 void asm_bss()
 {
   fputs(bss, asm_file);
+  fflush(asm_file);
+}
+
+void asm_append_procedures()
+{
+  ProcedureAppend *pt = append_list;
+  ProcedureAppend *dp;
+  while(pt != NULL)
+  {
+      dp = pt;
+      pt = pt->next;
+      
+      char file_name[strlen(dp->proc) + 25]; // syntan_blocks_temp/${proc}.proc\0
+      strcpy(file_name, "syntan_blocks_temp/");
+      strcat(file_name, dp->proc);
+      strcat(file_name, ".proc");
+      asm_f_append(file_name);
+      free(dp->proc);
+      free(dp);
+      printf("Appending %s\n", file_name);
+  }
+}
+
+void procedure_add(char *proc)
+{
+  if(append_list == NULL)
+  {
+    append_list = malloc(sizeof(FreeList));
+    append_list->proc = malloc(128);
+    strcpy(append_list->proc, proc);
+    append_list->next = NULL;
+  }
+  else
+  {
+    ProcedureAppend *pt = append_list;
+    while(pt->next != NULL)
+      pt = pt->next;
+    
+    pt->next = malloc(sizeof(FreeList));
+    pt->next->proc = malloc(128);
+    strcpy(pt->next->proc, proc);
+    pt->next->next = NULL;
+  }
+}
+
+void asm_exit()
+{
+  fputs(exit_symbol, asm_file);
   fflush(asm_file);
 }
 

@@ -20,10 +20,15 @@ module Assembly where
   foreign import capi "syntan/interface.h asm_data_head" dataHead :: IO ()
   foreign import capi "syntan/interface.h asm_bss" bss :: IO ()
   foreign import capi "syntan/interface.h asm_io_tail" ioTail :: IO ()
+  foreign import capi "syntan/interface.h asm_exit" asmExit :: IO ()
 
   -- Cheating the system to avoid fixups
   foreign import capi "syntan/interface.h block_add" blockAdd :: IO (Ptr Symbol)
   foreign import capi "syntan/interface.h temp_add" tempAdd :: IO (Ptr Symbol)
+
+  -- More cheating, but for procedures
+  foreign import capi "syntan/interface.h asm_append_procedures" appendProcedures :: IO ()
+  foreign import capi "syntan/interface.h procedure_add" procedureAdd :: CString -> IO ()
 
   -- Creating and writing to an intermediate file for a block
   foreign import capi "syntan/interface.h blockfile_open" blockfileOpen :: CString -> IO ()
@@ -196,7 +201,7 @@ module Assembly where
   patternMatch (QuadIW op cond quad) printer = do
     op_name <- peekTname op
     block <- blockAdd >>= peek
-    end_of_block <- peekCString $ sname block
+    end_of_block <- peekSname block
     if op_name == "WHILE" then do
       let start_of_block = "W" ++ drop 1 end_of_block
       printer (start_of_block ++ ":\n")
@@ -227,8 +232,17 @@ module Assembly where
     putStrLn "BLOCK, we already did this lol"
     block_name <- peekSname block
     withCString ("syntan_blocks_temp/" ++ block_name ++ ".qblock") asmFAppend
-
-  -- QuadP
+  patternMatch (QuadP xproc procedure (QuadB block)) printer = do
+    putStrLn "QuadP"
+    proc_name <- peekSname procedure
+    block_name <- peekSname block
+    withCString ("./syntan_blocks_temp/" ++ proc_name ++ ".proc") blockfileOpen
+    blockfileWrite $ proc_name ++ ":\n"
+    withCString ("syntan_blocks_temp/" ++ block_name ++ ".qblock") asmFAppend
+    blockfileWrite "ret\n"
+    blockfileClose
+    withCString proc_name procedureAdd
+    
   patternMatch (QuadIdS src off dest) printer = do
     putStrLn "QuadIdS"
     src_str <- peekSname src
@@ -322,4 +336,7 @@ module Assembly where
     | otherwise = writeSymbols rest
   
   asmFinalize :: IO ()
-  asmFinalize = ioTail
+  asmFinalize = do
+    asmExit
+    appendProcedures
+    ioTail

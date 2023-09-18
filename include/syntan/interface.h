@@ -18,6 +18,9 @@ void asm_f_append(char *file);
 void asm_data_head();
 void asm_bss();
 void asm_io_tail();
+void asm_exit();
+void procedure_add(char *proc);
+void asm_append_procedures();
 
 void blockfile_open(char *file);
 void blockfile_write(char *input);
