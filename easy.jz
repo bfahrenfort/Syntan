@@ -1,10 +1,10 @@
 /* a test program in the language Java Zero. */
 
 CLASS Easy {
-  VAR X = 2, Y, Z;
+  VAR X = 2, Y, W = 3, V = 5, Z;
 
   Y = X * 4;
-  /*Z = Y * 3 + Y * 4;*/
+  Z = X + Y * W / V + 5;
 
   PRINT Y
 }
