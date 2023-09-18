@@ -18,8 +18,9 @@ int main(int argc, char **argv)
   parser_init(argv[1], argv[2]);
   runParser(); // Call Haskell
   parser_release();
-
   hs_exit();
   
+  printf("Syntan: Exit\n");
+
   return 0;
 }
