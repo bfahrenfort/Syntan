@@ -1,8 +1,3 @@
-exit:
-	mov eax,1
-	xor ebx,ebx
-	int 80h
-
 ConvertIntegerToString:
 	mov ebx, ResultValue + 4
 
