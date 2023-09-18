@@ -1,0 +1,5 @@
+section	.bss
+  ReadInt RESW 1
+	global _start
+section .text
+_start:
