@@ -49,18 +49,22 @@ module TypeDeclarations where
   data Label = Label Integer Integer -- # address
 
   --                     op,   src,    tf,  dest 
-  data Quad = QuadQQS Token   Quad   Quad Symbol --   +, T1, T2, T3
-            | QuadSSS Token Symbol Symbol Symbol --   +.  X,  Y, T2
-            | QuadSQS Token Symbol   Quad Symbol --   +,  X, T1, T2
-            | QuadQSS Token   Quad Symbol Symbol --   +, T1,  X, T2
-            | QuadSS  Token Symbol        Symbol --   =,  Y,  -,  X
-            | QuadQS  Token   Quad        Symbol --   =, T1,  -,  X
-            | QuadIW  Token   Quad   Quad        --  IF, T1, T2,  -
-            | QuadS   Token Symbol               -- ODD,  X
-            | QuadQ   Token Quad                 -- ODD, T1
-            | QuadB                       Symbol -- (asm)
-            | QuadP   Token Symbol   Quad        -- PROCEDURE, Multiply, B1
-            | Invalid
+  data Quad = QuadQQS  Token   Quad   Quad Symbol --   +, T1, T2, T3
+            | QuadSSS  Token Symbol Symbol Symbol --   +.  X,  Y, T2
+            | QuadSQS  Token Symbol   Quad Symbol --   +,  X, T1, T2
+            | QuadQSS  Token   Quad Symbol Symbol --   +, T1,  X, T2
+            | QuadSS   Token Symbol        Symbol --   =,  Y,  -,  X
+            | QuadQS   Token   Quad        Symbol --   =, T1,  -,  X
+            | QuadIW   Token   Quad   Quad        --  IF, T1, T2,  -
+            | QuadS    Token Symbol               -- ODD,  X
+            | QuadQ    Token Quad                 -- ODD, T1
+            | QuadB                        Symbol -- (asm)
+            | QuadP    Token Symbol   Quad        -- PROCEDURE, Multiply, B1
+            | QuadIdS        Symbol Symbol        -- array, X
+            | QuadIdQ        Symbol   Quad        -- array, T1
+            | QuadSQ   Token Symbol          Quad --   =,  X,  -, arr[0]
+            | QuadQQ   Token   Quad          Quad --   =, T1,  -  arr[0]
+            | Invalid -- TODO: include partial quad stack w [TokenOrQuad]
 
   -- The coolest constructed type monad in all of Haskell: Either
   type TokenOrQuad  = (Either Token Quad)
@@ -73,29 +77,29 @@ module TypeDeclarations where
   -- Longhand enumeration begin
   -- TODO: string literal
   data TokenClass = TINVALID
-                  | XCLASS | XVAR | XCONST | XPROC
+                  | XCLASS | XVAR | XCONST | XPROC | XARR
                   | IDENT | INTEGER
                   | IF | THEN | WHILE | DO | CALL | ODD
                   | PRINT | GET
                   | ASSIGN | ADDOP | MOP | RELOP
-                  | LB | RB | LP | RP 
+                  | LB | RB | LP | RP | LS | RS
                   | COMMA | SEMI
                     deriving (Eq, Show)
 
   -- Turning integers in memory locations into enums and back again
   token_pairs_enum  = [ (TINVALID, 0), (XCLASS, -1), (XVAR, -2), (XCONST, -3), (IDENT, 6), 
                         (IF, -4), (THEN, -5), (XPROC, -6), (WHILE, -7), (DO, -8), (CALL, -9), (ODD, -10),
-                        (PRINT, -11), (GET, -12),
+                        (PRINT, -11), (GET, -12), (XARR, -13),
                         (INTEGER, 4),
                         (ASSIGN, 12), (ADDOP, 21), (MOP, 10), (RELOP, 13), 
-                        (LB, 25), (RB, 27), (COMMA, 29), (SEMI, 17), (LP, 31), (RP, 33) ]
+                        (LB, 25), (RB, 27), (COMMA, 29), (SEMI, 17), (LP, 31), (RP, 33), (LS, 42), (RS, 44) ]
 
   -- Turning enums into indexes in the lookup table and back again
   token_pairs_index = [ (TINVALID, -1),
                         (SEMI, 0), (ASSIGN, 1), (ADDOP, 2), (LP, 3), (RP, 4), (MOP, 5), 
                         (IF, 6), (THEN, 7), (ODD, 8), (RELOP, 9),
                         (LB, 10), (RB, 11), (CALL, 12), (WHILE, 13), (DO, 14), (COMMA, 15),
-                        (XCLASS, 16), (XVAR, 17), (XPROC, 18), (XCONST, 19), (PRINT, 20), (GET, 21) ]
+                        (XCLASS, 16), (XVAR, 17), (XPROC, 18), (XCONST, 19), (PRINT, 20), (GET, 21), (XARR, 22), (LS, 23), (RS, 24) ]
                         
   instance Enum TokenClass where
     fromEnum x = fromJust (lookup x token_pairs_enum) -- Corresponding entry in the pairs list
