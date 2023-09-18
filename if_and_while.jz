@@ -8,13 +8,18 @@ CLASS IfWhile
 
   /* 
    * If Z is between X and Y, print Z.
+   * Both single-statement and block body for any control structure is valid.
    */
   IF Z < X THEN
     IF Z > Y THEN
       PRINT Z;
   IF Z > X THEN
+  {
     IF Z < Y THEN
-      PRINT Z;
+    {
+      PRINT Z
+    }
+  }
 
   /* Print column 0, row 0; column 0, row 1; ... column 4, row 4 */
   WHILE COL < 5 DO
