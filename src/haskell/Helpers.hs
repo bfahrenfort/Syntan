@@ -256,8 +256,6 @@ module Helpers where
                                                   && tok_class rb == intEnum RB = do
     block <- blockAdd >>= peek
     block_name <- peekCString $ sname block
-    putStrLn $ "Quads in block " ++ block_name ++ ":"
-    printTokensAndQuads quads
     generateASM quads $ Just block
     return (QuadB block, symbols)
   toQuad [Left xproc, Left tproc, Left lp, Left rp, Right block] symbols = do

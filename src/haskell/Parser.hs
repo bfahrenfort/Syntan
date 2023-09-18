@@ -116,14 +116,8 @@ generateQuad stk@(tok_or_quad:rest) quad_stk symbols counter
   |  idx (top (push quad_stk tok_or_quad)) == toIndex XVAR 
   || idx (top (push quad_stk tok_or_quad)) == toIndex XCONST
   || idx (top (push quad_stk tok_or_quad)) == toIndex XARR = do
-    putStr "case declaration "
-    printTokenOrQuad tok_or_quad
-    putStrLn ""
     return (rest, symbols) -- declaration statement
   | otherwise = do
-    putStr "case comparison "
-    printTokenOrQuad tok_or_quad
-    putStrLn ""
     let new_quad = push quad_stk tok_or_quad
 
     let top_term = fromJust $ filterTop rest isTerminal
@@ -132,18 +126,8 @@ generateQuad stk@(tok_or_quad:rest) quad_stk symbols counter
     let quad_idx = idx top_of_quad
 
     if idx tok_or_quad < 0 then do
-      putStrLn "Add the above to quad_stk"
       generateQuad rest new_quad symbols $ counter + 1
     else do
-      putStrLn ""
-      putStrLn "Current quad_stk:"
-      printTokensAndQuads new_quad
-      putStr "Checking row "
-      printTokenOrQuad top_term
-      putStr " against col "
-      printTokenOrQuad top_of_quad
-      putStrLn ""
-
       let action = precedence_matrix!!fromIntegral stk_idx!!fromIntegral quad_idx
       
       -- If stack operator yields to quad operator, we found the head
@@ -159,17 +143,9 @@ generateQuad stk@(tok_or_quad:rest) quad_stk symbols counter
           || idx tok_or_quad == toIndex PRINT
           || idx tok_or_quad == toIndex GET then do -- Rules that start with a terminal
           (quad, new_symbols) <- toQuad new_quad symbols
-          putStrLn "Found head, stack:"
-          printTokenOrQuad $ Right quad
-          putStrLn ""
-          printTokensAndQuads rest
           return (push rest (Right quad), new_symbols)
         else do -- Rules that start with a nonterminal
           (quad, new_symbols) <- toQuad (top rest:new_quad) symbols
-          putStrLn "Found head, stack:"
-          printTokenOrQuad $ Right quad
-          putStrLn ""
-          printTokensAndQuads $ pop rest
           return (push (pop rest) (Right quad), new_symbols)        
       else generateQuad rest new_quad symbols $ counter + 1 -- Equal precedence
 
@@ -187,46 +163,28 @@ stateFunc tokens@(tok:_) stk symbols = do
   let stk_idx = fromIntegral . maybe (-1) idx $ filterTop stk isTerminal
 
   if stk_idx == toIndex RB || isBlock (top stk) then do
-    putStrLn "Unconditional pop"
     (new_stk, new_symbols) <- generateQuad stk [] symbols 0
     return (True, new_stk, new_symbols)
   else do
 
     if (stk_idx == toIndex XVAR || stk_idx == toIndex XCONST || stk_idx == toIndex XARR) && cur_idx /= 0 -- Declaration statement
-      then do 
-      putStrLn "no push"
-      putStrLn ""
-      return (False, stk, symbols)
-    else if cur_idx < 0 || stk_idx < 0 then do -- tok is nonterminal or there are no operators in stk
-      putStrLn "unconditional push"
-      putStrLn ""
+      then return (False, stk, symbols)
+    else if cur_idx < 0 || stk_idx < 0 then -- tok is nonterminal or there are no operators in stk
       return (False, push stk $ Left tok, symbols)
-    else do
-      print $ fromIndex stk_idx
-      print $ fromIndex cur_idx
-      
+    else do      
       let action = precedence_matrix!!fromIntegral stk_idx!!fromIntegral cur_idx
 
-      if action == Yields || action == Equal then do
-        -- TODO: fixup
-        putStrLn "conditioned push"
-        putStrLn ""
+      if action == Yields || action == Equal then
         return (False, push stk (Left tok), symbols)
       else if action == Takes then do
-        putStrLn "Starting quad gen"
         (new_stk, new_symbols) <- generateQuad stk [] symbols 0
         if tok_class tok /= intEnum XVAR
           && tok_class tok /= intEnum XCONST
-          && tok_class tok /= intEnum XARR then do -- Skip assignment statements
-          putStrLn "Retry closer tok "
+          && tok_class tok /= intEnum XARR then -- Skip assignment statements
           return (True, new_stk, new_symbols)
         else return (False, new_stk, new_symbols)
-      else if action == Skip then do
-        putStrLn "Skippin"
-        putStrLn ""
-        return (False, stk, symbols)
-      else do
-        putStrLn "tinvalid"
+      else if action == Skip then return (False, stk, symbols)
+      else 
         return (False, push stk (Left $ Token { tname = (tname tok), tok_class = intEnum TINVALID }), symbols) -- to be caught by F
 
 
@@ -253,9 +211,6 @@ pushDown (_, stk, f) symbols _ [] = do
   let (end, valid, err_stack) = f $ reverse stk
   return (end, valid, err_stack, symbols)
 pushDown (delta, stk, f) symbols printer tokens@(tok:rest) = do
-  printer tok
-  putStrLn ""
-
   (retry, new_stack, new_symbols) <- delta tokens stk symbols 
   let (end, valid, err_stack) = f new_stack
 
