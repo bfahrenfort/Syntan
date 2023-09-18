@@ -4,8 +4,7 @@
 Original project structure with several small generic structures that I built the scanner on top of.
 ### src
 * **c**: C code files.
-* **cpp**: C++ code files.
-* **hs**: Haskell code files.
+* **haskell**: Haskell code files.
 
 ### include
 Header files for the entire program.
