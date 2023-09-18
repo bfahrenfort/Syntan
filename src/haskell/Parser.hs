@@ -52,55 +52,66 @@ precedence_matrix = [[   Skip, Yields,  Error,  Error,  Error,  Error, Yields,  
 
   -- Pop logic, Look for tail of handle and generate quad
 generateQuad :: Stack TokenOrQuad -> Stack TokenOrQuad -> [Symbol] -> Integer -> IO (Stack TokenOrQuad)
-generateQuad stk@(tok_or_quad:rest) [] symbols counter = do
-  putStr "Empty quad stack "
-  printTokenOrQuad tok_or_quad
-  putStrLn ""
-  generateQuad rest [tok_or_quad] symbols $ counter + 1
 generateQuad stk@(tok_or_quad:rest) quad_stk symbols counter 
-  |  idx (top quad_stk) == toIndex XVAR 
-  || idx (top quad_stk) == toIndex XCONST
-  || idx (top quad_stk) == toIndex XARR = do
+  |  idx (top (push quad_stk tok_or_quad)) == toIndex XVAR 
+  || idx (top (push quad_stk tok_or_quad)) == toIndex XCONST
+  || idx (top (push quad_stk tok_or_quad)) == toIndex XARR = do
     putStr "case declaration "
     printTokenOrQuad tok_or_quad
     putStrLn ""
-    return stk -- declaration statement
+    return rest -- declaration statement
   | otherwise = do
     putStr "case comparison "
     printTokenOrQuad tok_or_quad
     putStrLn ""
+    let new_quad = push quad_stk tok_or_quad
 
-    let top_term = fromJust $ filterTop stk isTerminal
+    let top_term = fromJust $ filterTop rest isTerminal
     let stk_idx = idx top_term
-    let m_top_quad_term = filterTop quad_stk isTerminal
-    let quad_idx = maybe (-1) idx m_top_quad_term
+    let top_of_quad = top new_quad
+    let quad_idx = idx top_of_quad
 
-    if (counter < 2 || idx tok_or_quad == -1) || 
-       (idx tok_or_quad == -2 && idx (top quad_stk) == toIndex ASSIGN) then do
+    if idx tok_or_quad < 0 then do
       putStrLn "Add the above to quad_stk"
-      generateQuad rest (push quad_stk tok_or_quad) symbols $ counter + 1
+      generateQuad rest new_quad symbols $ counter + 1
     else do
       putStrLn ""
       putStrLn "Current quad_stk:"
-      printTokensAndQuads quad_stk
+      printTokensAndQuads new_quad
       putStr "Checking row "
       printTokenOrQuad top_term
       putStr " against col "
-      printTokenOrQuad $ fromJust m_top_quad_term
+      printTokenOrQuad top_of_quad
       putStrLn ""
 
       let action = precedence_matrix!!fromIntegral stk_idx!!fromIntegral quad_idx
       
       -- If stack operator yields to quad operator, we found the head
+      -- FIXME: if there are any bugs in this entire program they're in these 20 lines
       if action == Yields then do
-        quad <- toQuad quad_stk symbols
-        putStrLn "Found head, stack:"
-        printTokenOrQuad $ Right quad
-        putStrLn ""
-        printTokensAndQuads (tok_or_quad:rest)
-
-        return $ push (tok_or_quad:rest) $ Right quad
-      else generateQuad rest (push quad_stk tok_or_quad) symbols $ counter + 1 -- Equal precedence
+        if idx tok_or_quad == toIndex ODD 
+          || idx tok_or_quad == toIndex IF 
+          || idx tok_or_quad == toIndex WHILE
+          || idx tok_or_quad == toIndex LB 
+          || idx tok_or_quad == toIndex LP
+          || idx tok_or_quad == toIndex XPROC 
+          || idx tok_or_quad == toIndex CALL
+          || idx tok_or_quad == toIndex PRINT
+          || idx tok_or_quad == toIndex GET then do -- Rules that start with a terminal
+          quad <- toQuad new_quad symbols
+          putStrLn "Found head, stack:"
+          printTokenOrQuad $ Right quad
+          putStrLn ""
+          printTokensAndQuads rest
+          return $ push rest $ Right quad
+        else do -- Rules that start with a nonterminal
+          quad <- toQuad (top rest:new_quad) symbols
+          putStrLn "Found head, stack:"
+          printTokenOrQuad $ Right quad
+          putStrLn ""
+          printTokensAndQuads $ pop rest
+          return $ push (pop rest) $ Right quad        
+      else generateQuad rest new_quad symbols $ counter + 1 -- Equal precedence
 
 -- Lookup and push
 -- TODO: when PROCEDURE pushed, add to stack to assign to next block
@@ -144,14 +155,9 @@ stateFunc tokens@(tok:_) stk symbols = do
       else if action == Takes then do
         putStrLn "Starting quad gen"
         new_stk <- generateQuad stk [] symbols 0
-        if   tok_class tok == intEnum SEMI
-          || tok_class tok == intEnum ASSIGN
-          || tok_class tok == intEnum DO
-          || tok_class tok == intEnum THEN
-          || tok_class tok == intEnum XPROC
-          || tok_class tok == intEnum RP 
-          || tok_class tok == intEnum RB
-          || tok_class tok == intEnum RS then do -- Closing/collapsible token
+        if tok_class tok /= intEnum XVAR
+          && tok_class tok /= intEnum XCONST
+          && tok_class tok /= intEnum XARR then do -- Skip assignment statements
           putStrLn "Retry closer tok "
           return (True, new_stk)
         else return (False, new_stk)
