@@ -75,7 +75,7 @@ Symbol* temp_add()
   strcat(ret->name, temp_num);
 
   // Default value
-  strcpy(ret->value, "-");
+  strcpy(ret->value, "?");
   // TODO: write temp to symbol table file
   return ret;
 }
@@ -94,7 +94,7 @@ Symbol* block_add()
   strcat(ret->name, block_num);
 
   // Default value
-  strcpy(ret->value, "-");
+  strcpy(ret->value, "?");
   // TODO: write block to symbol table file
   return ret;
 }
