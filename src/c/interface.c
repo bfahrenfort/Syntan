@@ -4,10 +4,18 @@
 #include "syntan/lexical.h"
 #include "syntan/interface.h"
 
-FILE *token_file, *symbol_file, *asm_file;
+FILE *token_file, *symbol_file, *asm_file, *block_file;
 int instr_ptr = 0;
 int num_temps = 0;
 int num_blocks = 0;
+
+// Memory leak prevention
+typedef struct FreeList_t
+{
+  Symbol *to_be_freed;
+  struct FreeList_t *next;
+} FreeList;
+FreeList *free_list = NULL;
 
 // Comma-separated C-readable byte value files as char arrays for appending
 const char data_head[] = { 
@@ -117,8 +125,40 @@ Symbol* block_add()
 
   // Default value
   strcpy(ret->value, "?");
-  // TODO: write block to symbol table file
   return ret;
+}
+
+void free_list_add(Symbol *addition)
+{
+  if(free_list == NULL)
+  {
+    free_list = malloc(sizeof(FreeList));
+    free_list->to_be_freed = addition;
+  }
+  else
+  {
+    FreeList *pt = free_list;
+    while(pt->next != NULL)
+      pt = pt->next;
+    
+    pt->next = malloc(sizeof(FreeList));
+    pt->next->to_be_freed = addition;
+  }
+}
+
+void blockfile_open(char *file)
+{
+  block_file = fopen(file, "w"); 
+}
+
+void blockfile_write(char *input)
+{
+  fputs(input, block_file);
+}
+
+void blockfile_close()
+{
+  fclose(block_file);
 }
 
 void asm_write(char *input)
@@ -161,11 +201,6 @@ void asm_io_tail()
   fputs(io_tail, asm_file);
 }
 
-void procedure_block_write(Symbol *proc)
-{
-
-}
-
 void parser_init(char *tokens, char *symbols)
 {
   token_file = fopen(tokens, "r");
@@ -193,4 +228,15 @@ void parser_release()
   fclose(token_file);
   fclose(symbol_file);
   fclose(asm_file);
+
+  FreeList *pt = free_list;
+  FreeList *dp;
+  while(pt != NULL)
+  {
+      dp = pt;
+      printf("freeing %s\n", dp->to_be_freed->name);
+      pt = pt->next;
+      symbol_free(dp->to_be_freed);
+      free(dp);
+  }
 }

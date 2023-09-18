@@ -46,6 +46,12 @@ module TypeDeclarations where
       pokeByteOff ptr 0 tname
       pokeByteOff ptr 8 tok_class
 
+  peekTname :: Token -> IO String 
+  peekTname = peekCString . tname
+
+  peekSname :: Symbol -> IO String 
+  peekSname = peekCString . sname
+
   data Label = Label Integer Integer -- # address
 
   --                     op,   src,    tf,  dest 
@@ -60,8 +66,8 @@ module TypeDeclarations where
             | QuadQ    Token Quad                 -- ODD, T1
             | QuadB                        Symbol -- (asm)
             | QuadP    Token Symbol   Quad        -- PROCEDURE, Multiply, B1
-            | QuadIdS        Symbol Symbol        -- array, X
-            | QuadIdQ        Symbol   Quad        -- array, T1
+            | QuadIdS        Symbol Symbol Symbol -- array, X
+            | QuadIdQ        Symbol   Quad Symbol -- array, T1
             | QuadSQ   Token Symbol          Quad --   =,  X,  -, arr[0]
             | QuadQQ   Token   Quad          Quad --   =, T1,  -  arr[0]
             | Invalid -- TODO: include partial quad stack w [TokenOrQuad]

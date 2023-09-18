@@ -21,6 +21,7 @@ module Helpers where
 
   foreign import capi "syntan/interface.h temp_add" tempAdd :: IO (Ptr Symbol)
   foreign import capi "syntan/interface.h block_add" blockAdd :: IO (Ptr Symbol)
+  foreign import capi "syntan/interface.h free_list_add" freeListAdd :: Ptr Symbol -> IO ()
 
   printSymbol :: Symbol -> IO ()
   printSymbol s = do
@@ -29,7 +30,7 @@ module Helpers where
   printToken :: Token -> IO ()
   printToken t = do
     if tname t /= nullPtr then do
-      s <- peekCString $ tname t
+      s <- peekTname t
       putStr s
     else putStr "NULL STR"
   printQuad :: Quad -> IO ()
@@ -119,18 +120,22 @@ module Helpers where
     putStr ", "
     printQuad block
     putStr ", -)"
-  printQuad (QuadIdS src idx) = do
+  printQuad (QuadIdS src idx dest) = do
     putStr "("
     printSymbol src
     putStr "["
     printSymbol idx
-    putStr "])"
-  printQuad (QuadIdQ src idx) = do
+    putStr "], -, "
+    printSymbol dest
+    putStr ")"
+  printQuad (QuadIdQ src idx dest) = do
     putStr "("
     printSymbol src
     putStr "["
     printQuad idx
-    putStr "])"
+    putStr "], -, "
+    printSymbol dest
+    putStr ")"
   printQuad (QuadQQ op src dest) = do
     putStr "("
     printToken op
@@ -153,6 +158,12 @@ module Helpers where
   printTokenOrQuad (Left t) = printToken t
   printTokenOrQuad (Right t) = printQuad t
 
+  printSymbols :: [Symbol] -> IO ()
+  printSymbols [] = putStrLn ""
+  printSymbols (e:l) = do
+    printSymbol e
+    putStrLn ""
+    printSymbols l
   printTokens :: [Token] -> IO ()
   printTokens [] = putStrLn ""
   printTokens (e:l) = do
@@ -181,6 +192,9 @@ module Helpers where
   idx (Left t)  = toIndex . toEnum . fromIntegral $ tok_class t
   idx (Right _) = -2
 
+  evaluatorDummy :: Symbol -> IO ()
+  evaluatorDummy _ = return ()
+
   -- Analyze a stack of quads/tokens to turn it into a real quad
   toQuad :: Stack TokenOrQuad -> [Symbol] -> IO (Quad, [Symbol])
   toQuad [Left lft, Left mid, Left rt] symbols
@@ -191,7 +205,9 @@ module Helpers where
     | otherwise = do
       src_sym <- symbolFromToken lft symbols
       tf_sym <- symbolFromToken rt symbols
-      temp <- tempAdd >>= peek
+      temp_ptr <- tempAdd
+      temp <- peek temp_ptr
+      freeListAdd temp_ptr
       return (QuadSSS mid src_sym tf_sym temp, temp:symbols)            -- +, src_sym, tf_sym, temp
   toQuad [Left lft, Left mid, Right rt] symbols
     | tok_class mid == intEnum ASSIGN = do
@@ -199,7 +215,9 @@ module Helpers where
       return (QuadQS mid rt dest_sym, symbols)                    -- =, rt, -, dest_sym,
     | otherwise = do
       src_sym <- symbolFromToken lft symbols
-      temp <- tempAdd >>= peek
+      temp_ptr <- tempAdd
+      temp <- peek temp_ptr
+      freeListAdd temp_ptr
       return (QuadSQS mid src_sym rt temp, temp:symbols)               -- +, src_sym, rt (actually tf), temp
   toQuad [Right lft, Left mid, Left rt] symbols
     |  tok_class mid == intEnum ASSIGN = do
@@ -207,13 +225,17 @@ module Helpers where
       return (QuadSQ mid src_sym lft, symbols)                         -- =, src, -, arr[0]
     | otherwise                       = do
       tf_sym <- symbolFromToken rt symbols
-      temp <- tempAdd >>= peek
+      temp_ptr <- tempAdd
+      temp <- peek temp_ptr
+      freeListAdd temp_ptr
       return (QuadQSS mid lft tf_sym temp, temp:symbols)               -- +, lft, tf_sym, temp
   toQuad [Right lft, Left mid, Right rt] symbols
     | tok_class mid == intEnum ASSIGN = do
       return (QuadQQ mid rt lft, symbols)                           -- =, T1, -, arr[0]
     | otherwise                       = do
-      temp <- tempAdd >>= peek
+      temp_ptr <- tempAdd
+      temp <- peek temp_ptr
+      freeListAdd temp_ptr
       return (QuadQQS mid lft rt temp, temp:symbols)                      -- +, lft, rt, temp
   toQuad [Left op, Left src] symbols = do
     src_sym <- symbolFromToken src symbols
@@ -231,19 +253,27 @@ module Helpers where
     && tok_class rt  == intEnum RS = do -- Subscripting
       src_sym <- symbolFromToken lft symbols
       idx_sym <- symbolFromToken mr symbols
-      return (QuadIdS src_sym idx_sym, symbols)                     -- arr, INT0
+      temp_ptr <- tempAdd
+      temp <- peek temp_ptr
+      freeListAdd temp_ptr
+      return (QuadIdS src_sym idx_sym temp, temp:symbols)                     -- arr, INT0
   toQuad [Left lft, Left ml, Right mr, Left rt] symbols |  tok_class lft == intEnum IDENT
                                                         && tok_class ml  == intEnum LS
                                                         && tok_class rt  == intEnum RS = do
     src_sym <- symbolFromToken lft symbols
-    return (QuadIdQ src_sym mr, symbols)
+    temp_ptr <- tempAdd
+    temp <- peek temp_ptr
+    freeListAdd temp_ptr
+    return (QuadIdQ src_sym mr temp, temp:symbols)
 
   toQuad [Left iwop, Right cond, Left thenop, Right stmt] symbols = do
     return (QuadIW iwop cond stmt, symbols)
   toQuad (Block (Left lb) quads (Left rb)) symbols |  tok_class lb == intEnum LB
                                                   && tok_class rb == intEnum RB = do
-    generateASM quads
-    block <- blockAdd >>= peek
+    block_ptr <- blockAdd
+    block <- peek block_ptr
+    freeListAdd block_ptr
+    generateASM quads $ Just block
     return (QuadB block, symbols)
   toQuad [Left xproc, Left tproc, Left lp, Left rp, Right block] symbols = do
     proc_sym <- symbolFromToken tproc symbols
@@ -278,10 +308,10 @@ module Helpers where
   symbolFromToken :: Token -> [Symbol] -> IO Symbol
   symbolFromToken tok symbols 
     | tok_class tok == intEnum INTEGER = do -- Lookup as INT(name)
-      name <- peekCString $ tname tok 
+      name <- peekTname tok 
       fromJust <$> lookupSymbol ("INT" ++ name) symbols
     | otherwise                        = do -- Lookup by passed in name
-      name <- peekCString $ tname tok
+      name <- peekTname tok
       fromJust <$> lookupSymbol name symbols
 
   -- Is this string only digits? (Integer literal)
