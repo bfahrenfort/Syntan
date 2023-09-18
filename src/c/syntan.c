@@ -6,16 +6,17 @@
 
 int main(int argc, char **argv)
 {
-  if(argc != 3)
+  if(argc != 4)
   {
     printf("Usage: %s lexemes.lex symbols.sym\n"
-          "\tlexemes.lex: path to tokens/lexemes from Lexicalli output\n"
-          "\tsymbols.sym: path to symbol table from Lexicalli output\n", argv[0]);
+          "\tlexemes.lex : path to tokens/lexemes from Lexicalli output\n"
+          "\tsymbols.sym : path to symbol table from Lexicalli output\n"
+          "\tassembly.asm: assembly file that this program will output\n", argv[0]);
     return 1;
   }
   
   hs_init(&argc, &argv);
-  parser_init(argv[1], argv[2]);
+  parser_init(argv[1], argv[2], argv[3]);
   int32_t ret = runParser(); // Call Haskell
   parser_release();
   hs_exit();

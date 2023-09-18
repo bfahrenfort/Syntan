@@ -26,7 +26,7 @@ void blockfile_open(char *file);
 void blockfile_write(char *input);
 void blockfile_close();
 
-void parser_init(char *tokens, char *symbols);
+void parser_init(char *tokens, char *symbols, char *assembly);
 void parser_release();
 
 #endif // INTERFACE_H
