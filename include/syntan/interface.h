@@ -11,6 +11,9 @@ void symbol_free(Symbol *s);
 void token_free(Token *t);
 
 Symbol* temp_add();
+Symbol* block_add();
+
+void asm_write(char *input);
 
 void parser_init(char *tokens, char *symbols);
 void parser_release();

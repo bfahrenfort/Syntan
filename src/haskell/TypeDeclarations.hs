@@ -9,7 +9,7 @@ module TypeDeclarations where
   import Data.Tuple (swap)
   import Data.Maybe (fromJust)
 
-  -- Mirrors of C types
+  -- Mirror C types
   data Symbol = Symbol
               { sname     :: CString -- 8 byte
               , sym_class :: CInt -- 4 byte
@@ -46,7 +46,6 @@ module TypeDeclarations where
       pokeByteOff ptr 0 tname
       pokeByteOff ptr 8 tok_class
 
-  -- Enumerations and datatypes for parse
   data Label = Label Integer Integer -- # address
 
   --                     op,   src,    tf,  dest 
@@ -56,13 +55,15 @@ module TypeDeclarations where
             | QuadQSS Token   Quad Symbol Symbol --   +, T1,  X, T2
             | QuadSS  Token Symbol        Symbol --   =,  Y,  -,  X
             | QuadQS  Token   Quad        Symbol --   =, T1,  -,  X
+            | QuadIW  Token   Quad   Quad        --  IF, T1, T2,  -
             -- | QuadS   Token Symbol               -- ODD,  X
             -- | QuadQ   Token Quad                 -- ODD, T1
+            | QuadB                       Symbol -- (asm)
+            | QuadP   Token Symbol   Quad        -- PROCEDURE, Multiply, B1
             | Invalid
 
   -- The coolest constructed type monad in all of Haskell: Either
   type TokenOrQuad  = (Either Token Quad)
-
 
   data Action = Equal | Yields | Takes | Skip | Error deriving (Eq, Enum) -- Shorthand (Equal <-> 0, Yields <-> 1...)
   -- Looks nice for sure, really impractical in terms of distance from left margin
@@ -98,3 +99,4 @@ module TypeDeclarations where
     fromEnum x = fromJust (lookup x token_pairs_enum) -- Corresponding entry in the pairs list
     toEnum x   = fromJust (lookup x (map swap token_pairs_enum)) -- Reversed corresponding entry
   -- Longhand enumeration end
+  -- I don't like enumerations in haskell
