@@ -174,7 +174,7 @@ void blockfile_write(char *input)
     fflush(block_file);
   }
   else
-    printf("Block file not opened.\n");
+    printf("Syntan: Block file not opened.\n");
 }
 
 void blockfile_close()
@@ -185,7 +185,7 @@ void blockfile_close()
     block_file = NULL;
   }
   else
-    printf("Cannot close blockfile\n");
+    printf("Syntan: Cannot close blockfile\n");
 }
 
 void asm_write(char *input)
@@ -245,7 +245,6 @@ void asm_append_procedures()
       asm_f_append(file_name);
       free(dp->proc);
       free(dp);
-      printf("Appending %s\n", file_name);
   }
 }
 
@@ -306,7 +305,7 @@ void parser_init(char *tokens, char *symbols, char *assembly)
   }
   else
   {
-    printf("Token or Symbol file not found\n");
+    printf("Syntan: Token or Symbol file not found\n");
     exit(1);
   }
 }
