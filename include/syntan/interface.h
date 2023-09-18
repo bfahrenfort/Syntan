@@ -14,6 +14,10 @@ Symbol* temp_add();
 Symbol* block_add();
 
 void asm_write(char *input);
+void asm_f_append(char *file);
+void asm_data_head();
+void asm_bss();
+void asm_io_tail();
 
 void parser_init(char *tokens, char *symbols);
 void parser_release();

@@ -9,6 +9,27 @@ int instr_ptr = 0;
 int num_temps = 0;
 int num_blocks = 0;
 
+// Comma-separated C-readable byte value files as char arrays for appending
+const char data_head[] = { 
+  #include "../../data_head.xxd" 
+  }; // IO constants etc
+const char bss[] = { 
+  #include "../../bss.xxd" 
+  }; // 'global _start' etc
+const char io_tail[] = { 
+  #include "../../io_tail.xxd" 
+  }; // GetAnInteger, PrintString, etc
+
+char* format_output(char* input, char *extension)
+{
+  char *out = malloc(strlen(input) + 5); // length of inputname_inputextension.lex\0
+  strcpy(out, input);
+  char *dot = strchr(out, '.');
+  *dot = '_';
+  strcat(out, extension);
+  return out;
+}
+
 Symbol* next_symbol()
 {
   Symbol *symbol = malloc(sizeof(Symbol));
@@ -27,7 +48,6 @@ Symbol* next_symbol()
   }
   else
     symbol->sym_class = SINVALID; // Let Haskell know we're out of symbols
-    
   return symbol;
 }
 
@@ -104,6 +124,41 @@ void asm_write(char *input)
   fputs(input, asm_file);
 }
 
+void asm_f_append(char *file)
+{
+  FILE *inf;
+
+  if((inf = fopen(file, "r")) != NULL)
+  {
+    char buff[128];
+
+    fputc('\n', asm_file);
+
+    int bytes_read;
+    while((bytes_read = fread(buff, 1, 128, inf)) > 0)
+    {
+      fwrite(buff, 1, bytes_read, asm_file);
+    }
+
+    fclose(inf);
+  }
+}
+
+void asm_data_head()
+{
+  fputs(data_head, asm_file);
+}
+
+void asm_bss()
+{
+  fputs(bss, asm_file);
+}
+
+void asm_io_tail()
+{
+  fputs(io_tail, asm_file);
+}
+
 void procedure_block_write(Symbol *proc)
 {
 
@@ -113,6 +168,10 @@ void parser_init(char *tokens, char *symbols)
 {
   token_file = fopen(tokens, "r");
   symbol_file = fopen(symbols, "r");
+
+  char *asm_name = format_output(tokens, ".asm");
+  asm_file = fopen(asm_name, "w");
+  free(asm_name);
 
   char c;
   do
@@ -131,4 +190,5 @@ void parser_release()
 {
   fclose(token_file);
   fclose(symbol_file);
+  fclose(asm_file);
 }

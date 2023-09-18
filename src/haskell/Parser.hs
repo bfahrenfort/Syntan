@@ -165,33 +165,33 @@ stateFunc tokens@(tok:_) stk symbols = do
 
 
 -- Check if stack contains a valid program or errored
-checkEnd :: Stack TokenOrQuad -> (Bool, Stack TokenOrQuad)
+checkEnd :: Stack TokenOrQuad -> (Bool, Bool, Stack TokenOrQuad)
 checkEnd (Program (Left semi) (Left xclass) (Left cname) (Left lb) quads (Left rb))
   |  tok_class rb     == intEnum RB
   && tok_class lb     == intEnum LB
   && tok_class cname  == intEnum IDENT
   && tok_class xclass == intEnum XCLASS
-  && tok_class semi   == intEnum SEMI = (True, quads) -- Valid program
-checkEnd stk@(Left tok:rest) | tok_class tok == intEnum TINVALID = (True, stk)
-                             | otherwise = (False, stk)
-checkEnd stk@(Right Invalid:rest) = (True, stk)
-checkEnd any = (False, any) 
+  && tok_class semi   == intEnum SEMI = (True, True, quads) -- Valid program
+checkEnd stk@(Left tok:rest) | tok_class tok == intEnum TINVALID = (True, False, stk)
+                             | otherwise = (False, True, stk)
+checkEnd stk@(Right Invalid:rest) = (True, False, stk)
+checkEnd any = (False, True, any) 
 
 -- The bees have returned, and I don't mean they popped themselves from the call stack
 -- They've ingrained themselves in the head node of the linked stack,
 --  and taken over the info field
 -- Computer completely filled with bees
 -- Send beekeepers and debuggers
-pushDown :: P_D_Automaton symbol token stack_el -> [symbol] -> (token -> IO ()) -> [token] -> IO (Bool, Stack stack_el)
+pushDown :: P_D_Automaton symbol token stack_el -> [symbol] -> (token -> IO ()) -> [token] -> IO (Bool, Bool, Stack stack_el)
 pushDown (_, stk, f) _ _ [] = return . f $ reverse stk
 pushDown (delta, stk, f) symbols printer tokens@(tok:rest) = do
   printer tok
   putStrLn ""
 
   (retry, new_stack) <- delta tokens stk symbols 
-  let (end, err_stack) = f new_stack
+  let (end, valid, err_stack) = f new_stack
 
-  if end then return (end, err_stack)
+  if end then return (end, valid, err_stack)
   else if retry then pushDown (delta, new_stack, f) symbols printer tokens
   else pushDown (delta, new_stack, f) symbols printer rest
 
@@ -203,16 +203,26 @@ runParser = do
   putStrLn "Syntan: Lexeme and Symbol Import Success"
   tokens <- mapM peek token_list
   symbols <- mapM peek symbol_list
+
+  --vals <- mapM (peekCString . value) symbols
+
+  -- Add start of assembly file
+  asmSetup symbols
   
   -- Pass and begin parse
   semi_str <- withCString ";" $ \ x -> do -- Stack-memory C string
     let semi_tok = Token { tname = x, tok_class = intEnum SEMI }
-    (valid, err_stack) <- pushDown (stateFunc, [Left semi_tok], checkEnd) symbols printToken tokens
-    if valid then putStrLn "Syntan: Parse Success" -- TODO: bad logic
+    (_, valid, err_stack) <- pushDown (stateFunc, [Left semi_tok], checkEnd) symbols printToken tokens
+    if valid then do
+      generateASM err_stack
+      putStrLn "Syntan: Parse Success" -- TODO: bad logic
     else putStrLn "Syntan: Parse Fail"
   
   -- Clean up environment (lots of memory was thrown around during imports)
   symbolsFinalize symbol_list
   tokensFinalize token_list
+
+  -- Add end of file
+  asmFinalize
   
 foreign export ccall runParser :: IO () -- Generate prototypes to call from C

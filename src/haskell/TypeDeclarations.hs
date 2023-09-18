@@ -23,19 +23,19 @@ module TypeDeclarations where
   -- Explicitly tell Haskell how to store and retrieve the above types
   instance Storable Symbol where
     alignment _ = 8 -- LCM of the sizes of the struct elements
-    sizeOf _    = 28 -- Sum of sizes of struct elementss
+    sizeOf _    = 32 -- Sum of sizes of struct elementss
     peek ptr    = Symbol
       <$> peekByteOff ptr 0 -- Offset of first element
       <*> peekByteOff ptr 8 -- Offset of second element
-      <*> peekByteOff ptr 12 -- ...
-      <*> peekByteOff ptr 20
-      <*> peekByteOff ptr 24
+      <*> peekByteOff ptr 16 -- Padding bits + offset of the third element
+      <*> peekByteOff ptr 24 -- Next time check sizeof(Symbol) before you spend 6 hours debugging
+      <*> peekByteOff ptr 28
     poke ptr (Symbol sname sym_class value address segment) = do
       pokeByteOff ptr 0 sname
       pokeByteOff ptr 8 sym_class
-      pokeByteOff ptr 12 value
-      pokeByteOff ptr 20 address
-      pokeByteOff ptr 24 segment
+      pokeByteOff ptr 16 value
+      pokeByteOff ptr 24 address
+      pokeByteOff ptr 28 segment
   instance Storable Token where
     alignment _ = 8
     sizeOf _    = 12
