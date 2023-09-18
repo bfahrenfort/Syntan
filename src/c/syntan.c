@@ -16,11 +16,11 @@ int main(int argc, char **argv)
   
   hs_init(&argc, &argv);
   parser_init(argv[1], argv[2]);
-  runParser(); // Call Haskell
+  int32_t ret = runParser(); // Call Haskell
   parser_release();
   hs_exit();
   
   printf("Syntan: Exit\n");
 
-  return 0;
+  return ret;
 }

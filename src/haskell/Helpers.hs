@@ -148,7 +148,7 @@ module Helpers where
     putStr ", -, "
     printQuad dest
     putStr ")"
-  printQuad Invalid = putStr "(Invalid)"
+  printQuad (Invalid _) = putStr "(Invalid)"
 
   printTokenOrQuad :: TokenOrQuad -> IO ()
   printTokenOrQuad (Left t) = printToken t
@@ -265,7 +265,7 @@ module Helpers where
     return (QuadP xproc proc_sym block, symbols)
   toQuad [Left lp, Right quad, Left rp] symbols |  tok_class lp == intEnum LP
                                                 && tok_class rp == intEnum RP = return (quad, symbols)
-  toQuad _ symbols = return (Invalid, symbols)
+  toQuad lst symbols = return (Invalid lst, symbols)
 
   -- Pattern match helper
   initPlusLast :: [a] -> Maybe ([a], a)

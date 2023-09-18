@@ -42,10 +42,12 @@
 module Parser where
 
 import Foreign.Ptr
+import Foreign.C.Types
 import Foreign.C.String
 import Data.List (elemIndex, find)
 import Data.Maybe (fromJust)
 import Foreign.Storable
+import Control.Monad (when)
 
 import PDA
 import Stack
@@ -53,6 +55,7 @@ import TypeDeclarations
 import Helpers
 import CGets
 import Assembly
+import ErrorCheck
 
 -- The main focus of the program
 -- It should be noted that I use 'Skip' to denote when to collapse
@@ -84,6 +87,28 @@ precedence_matrix = [[   Skip, Yields,  Error,  Error,  Error,  Error, Yields,  
                      [  Error,  Error, Yields, Yields,  Error, Yields,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Error, Yields,  Equal ], -- [
                      [  Takes,  Takes,  Takes,  Error,  Takes,  Takes,  Error,  Takes,  Error,  Takes,  Error,  Takes,  Error,  Error,  Takes,  Takes,  Error,  Error,  Error,  Error,  Error,  Error,  Error,  Takes,  Takes ]] -- ]
 
+-- Error checking
+printErrorMessage :: Stack TokenOrQuad -> IO ()
+printErrorMessage (Right (Invalid lst):_) = do
+  putStr "No pattern match for the expression: \n\t"
+  printFailedQuad lst 0
+printErrorMessage err_stack = do
+  putStr "In expression: \n\t"
+  printExpression err_stack
+  putStrLn "\ESC[0m"
+  putStr "Expected: \n\t"
+  let top_idx = maybe (-1) idx $ filterTop err_stack isTerminal
+  when (top_idx == toIndex ASSIGN
+     || top_idx == toIndex ADDOP
+     || top_idx == toIndex MOP
+     || top_idx == toIndex RELOP)
+    $ putStr "identifier or literal followed by:\n\t"
+  if top_idx >= 0 then printExpected (precedence_matrix!!fromIntegral top_idx) 0
+  else putStr "(something's not right)"
+  putStrLn ""
+  putStr "Found: \n\t\ESC[31m"
+  printTokenOrQuad $ top err_stack
+  putStrLn "\ESC[0m"
 
   -- Pop logic, Look for tail of handle and generate quad
 generateQuad :: Stack TokenOrQuad -> Stack TokenOrQuad -> [Symbol] -> Integer -> IO (Stack TokenOrQuad, [Symbol])
@@ -202,7 +227,7 @@ stateFunc tokens@(tok:_) stk symbols = do
         return (False, stk, symbols)
       else do
         putStrLn "tinvalid"
-        return (False, push stk (Left $ Token { tname = nullPtr, tok_class = intEnum TINVALID }), symbols) -- to be caught by F
+        return (False, push stk (Left $ Token { tname = (tname tok), tok_class = intEnum TINVALID }), symbols) -- to be caught by F
 
 
 -- Check if stack contains a valid program or errored
@@ -215,7 +240,7 @@ checkEnd (Program (Left semi) (Left xclass) (Left cname) (Left lb) quads (Left r
   && tok_class semi   == intEnum SEMI = (True, True, quads) -- Valid program
 checkEnd stk@(Left tok:rest) | tok_class tok == intEnum TINVALID = (True, False, stk)
                              | otherwise = (False, True, stk)
-checkEnd stk@(Right Invalid:rest) = (True, False, stk)
+checkEnd stk@(Right (Invalid _):rest) = (True, False, stk)
 checkEnd any = (False, True, any) 
 
 -- The bees have returned, and I don't mean they popped themselves from the call stack
@@ -238,7 +263,7 @@ pushDown (delta, stk, f) symbols printer tokens@(tok:rest) = do
   else if retry then pushDown (delta, new_stack, f) new_symbols printer tokens
   else pushDown (delta, new_stack, f) new_symbols printer rest
 
-runParser :: IO ()
+runParser :: IO CInt
 runParser = do
   -- Populate lists
   symbol_list <- populateSymbolList []
@@ -248,7 +273,7 @@ runParser = do
   symbols <- mapM peek symbol_list
   
   -- Pass and begin parse
-  semi_str <- withCString ";" $ \ x -> do -- Stack-memory C string
+  retval <- withCString ";" $ \ x -> do -- Stack-memory C string
     let semi_tok = Token { tname = x, tok_class = intEnum SEMI } -- To start the stack
     (_, valid, err_stack, new_symbols) <- pushDown (stateFunc, [Left semi_tok], checkEnd) symbols printToken tokens
     if valid then do
@@ -256,8 +281,11 @@ runParser = do
       putStrLn "Syntan: Starting Main Assembly Generation"
       asmSetup new_symbols
       generateASM err_stack Nothing
-      
-    else putStrLn "Syntan: Parse Fail"
+      return $ fromIntegral 0
+    else do 
+      putStrLn "\ESC[31mSyntan: Parse Fail\ESC[0m"
+      printErrorMessage err_stack
+      return $ fromIntegral 1
   
   -- Clean up environment (lots of memory was thrown around during imports)
   symbolsFinalize symbol_list
@@ -265,5 +293,7 @@ runParser = do
 
   -- Add end of file
   asmFinalize
+
+  return retval
   
-foreign export ccall runParser :: IO () -- Generate prototypes to call from C
+foreign export ccall runParser :: IO CInt -- Generate prototypes to call from Cghc -c -O src/haskell/** -outputdir tmp -stubdir include/stubs -Iinclude -itmp

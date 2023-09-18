@@ -70,7 +70,7 @@ module TypeDeclarations where
             | QuadIdQ        Symbol   Quad Symbol -- array, T1
             | QuadSQ   Token Symbol          Quad --   =,  X,  -, arr[0]
             | QuadQQ   Token   Quad          Quad --   =, T1,  -  arr[0]
-            | Invalid -- TODO: include partial quad stack w [TokenOrQuad]
+            | Invalid [TokenOrQuad]
 
   -- The coolest constructed type monad in all of Haskell: Either
   type TokenOrQuad  = (Either Token Quad)
