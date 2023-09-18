@@ -26,16 +26,16 @@ ProcedureAppend *append_list = NULL;
 
 // Comma-separated C-readable byte value files as char arrays for appending
 const char data_head[] = { 
-  #include "../../data_head.xxd" 
+  #include "../../asm/data_head.xxd" 
   }; // IO constants etc
 const char bss[] = { 
-  #include "../../bss.xxd" 
+  #include "../../asm/bss.xxd" 
   }; // 'global _start' etc
 const char exit_symbol[] = { 
-  #include "../../asm_exit.xxd" 
+  #include "../../asm/asm_exit.xxd" 
   }; // 'global _start' etc
 const char io_tail[] = { 
-  #include "../../io_tail.xxd" 
+  #include "../../asm/io_tail.xxd" 
   }; // GetAnInteger, PrintString, etc
 
 char* format_output(char* input, char *extension)
