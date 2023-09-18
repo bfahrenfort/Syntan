@@ -19,10 +19,6 @@ module Helpers where
   import Stack
   import Assembly
 
-  foreign import capi "syntan/interface.h temp_add" tempAdd :: IO (Ptr Symbol)
-  foreign import capi "syntan/interface.h block_add" blockAdd :: IO (Ptr Symbol)
-  foreign import capi "syntan/interface.h free_list_add" freeListAdd :: Ptr Symbol -> IO ()
-
   printSymbol :: Symbol -> IO ()
   printSymbol s = do
     str <- peekCString $ sname s
@@ -205,9 +201,7 @@ module Helpers where
     | otherwise = do
       src_sym <- symbolFromToken lft symbols
       tf_sym <- symbolFromToken rt symbols
-      temp_ptr <- tempAdd
-      temp <- peek temp_ptr
-      freeListAdd temp_ptr
+      temp <- tempAdd >>= peek
       return (QuadSSS mid src_sym tf_sym temp, temp:symbols)            -- +, src_sym, tf_sym, temp
   toQuad [Left lft, Left mid, Right rt] symbols
     | tok_class mid == intEnum ASSIGN = do
@@ -215,9 +209,7 @@ module Helpers where
       return (QuadQS mid rt dest_sym, symbols)                    -- =, rt, -, dest_sym,
     | otherwise = do
       src_sym <- symbolFromToken lft symbols
-      temp_ptr <- tempAdd
-      temp <- peek temp_ptr
-      freeListAdd temp_ptr
+      temp <- tempAdd >>= peek
       return (QuadSQS mid src_sym rt temp, temp:symbols)               -- +, src_sym, rt (actually tf), temp
   toQuad [Right lft, Left mid, Left rt] symbols
     |  tok_class mid == intEnum ASSIGN = do
@@ -225,17 +217,13 @@ module Helpers where
       return (QuadSQ mid src_sym lft, symbols)                         -- =, src, -, arr[0]
     | otherwise                       = do
       tf_sym <- symbolFromToken rt symbols
-      temp_ptr <- tempAdd
-      temp <- peek temp_ptr
-      freeListAdd temp_ptr
+      temp <- tempAdd >>= peek
       return (QuadQSS mid lft tf_sym temp, temp:symbols)               -- +, lft, tf_sym, temp
   toQuad [Right lft, Left mid, Right rt] symbols
     | tok_class mid == intEnum ASSIGN = do
       return (QuadQQ mid rt lft, symbols)                           -- =, T1, -, arr[0]
     | otherwise                       = do
-      temp_ptr <- tempAdd
-      temp <- peek temp_ptr
-      freeListAdd temp_ptr
+      temp <- tempAdd >>= peek
       return (QuadQQS mid lft rt temp, temp:symbols)                      -- +, lft, rt, temp
   toQuad [Left op, Left src] symbols = do
     src_sym <- symbolFromToken src symbols
@@ -253,26 +241,23 @@ module Helpers where
     && tok_class rt  == intEnum RS = do -- Subscripting
       src_sym <- symbolFromToken lft symbols
       idx_sym <- symbolFromToken mr symbols
-      temp_ptr <- tempAdd
-      temp <- peek temp_ptr
-      freeListAdd temp_ptr
+      temp <- tempAdd >>= peek
       return (QuadIdS src_sym idx_sym temp, temp:symbols)                     -- arr, INT0
   toQuad [Left lft, Left ml, Right mr, Left rt] symbols |  tok_class lft == intEnum IDENT
                                                         && tok_class ml  == intEnum LS
                                                         && tok_class rt  == intEnum RS = do
     src_sym <- symbolFromToken lft symbols
-    temp_ptr <- tempAdd
-    temp <- peek temp_ptr
-    freeListAdd temp_ptr
+    temp <- tempAdd >>= peek
     return (QuadIdQ src_sym mr temp, temp:symbols)
 
   toQuad [Left iwop, Right cond, Left thenop, Right stmt] symbols = do
     return (QuadIW iwop cond stmt, symbols)
   toQuad (Block (Left lb) quads (Left rb)) symbols |  tok_class lb == intEnum LB
                                                   && tok_class rb == intEnum RB = do
-    block_ptr <- blockAdd
-    block <- peek block_ptr
-    freeListAdd block_ptr
+    block <- blockAdd >>= peek
+    block_name <- peekCString $ sname block
+    putStrLn $ "Quads in block " ++ block_name ++ ":"
+    printTokensAndQuads quads
     generateASM quads $ Just block
     return (QuadB block, symbols)
   toQuad [Left xproc, Left tproc, Left lp, Left rp, Right block] symbols = do

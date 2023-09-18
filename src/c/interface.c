@@ -89,6 +89,26 @@ void token_free(Token *t)
   }
 }
 
+void free_list_add(Symbol *addition)
+{
+  if(free_list == NULL)
+  {
+    free_list = malloc(sizeof(FreeList));
+    free_list->to_be_freed = addition;
+    free_list->next == NULL;
+  }
+  else
+  {
+    FreeList *pt = free_list;
+    while(pt->next != NULL)
+      pt = pt->next;
+    
+    pt->next = malloc(sizeof(FreeList));
+    pt->next->to_be_freed = addition;
+    pt->next->next = NULL;
+  }
+}
+
 Symbol* temp_add()
 {
   Symbol *ret = malloc(sizeof(Symbol));
@@ -107,6 +127,7 @@ Symbol* temp_add()
   // Default value
   strcpy(ret->value, "0");
 
+  free_list_add(ret);
   return ret;
 }
 
@@ -125,25 +146,9 @@ Symbol* block_add()
 
   // Default value
   strcpy(ret->value, "?");
-  return ret;
-}
 
-void free_list_add(Symbol *addition)
-{
-  if(free_list == NULL)
-  {
-    free_list = malloc(sizeof(FreeList));
-    free_list->to_be_freed = addition;
-  }
-  else
-  {
-    FreeList *pt = free_list;
-    while(pt->next != NULL)
-      pt = pt->next;
-    
-    pt->next = malloc(sizeof(FreeList));
-    pt->next->to_be_freed = addition;
-  }
+  free_list_add(ret);
+  return ret;
 }
 
 void blockfile_open(char *file)
@@ -153,18 +158,30 @@ void blockfile_open(char *file)
 
 void blockfile_write(char *input)
 {
-  fputs(input, block_file);
+  if(block_file != NULL)
+  {
+    fputs(input, block_file);
+    fflush(block_file);
+  }
+  else
+    printf("Block file not opened.\n");
 }
 
 void blockfile_close()
 {
-  fclose(block_file);
-  block_file = NULL;
+  if(block_file != NULL)
+  {
+    fclose(block_file);
+    block_file = NULL;
+  }
+  else
+    printf("Cannot close blockfile\n");
 }
 
 void asm_write(char *input)
 {
   fputs(input, asm_file);
+  fflush(asm_file);
 }
 
 void asm_f_append(char *file)
@@ -184,6 +201,8 @@ void asm_f_append(char *file)
       fwrite(buff, 1, bytes_read, of);
     }
 
+    fflush(of);
+
     fclose(inf);
   }
 }
@@ -191,16 +210,19 @@ void asm_f_append(char *file)
 void asm_data_head()
 {
   fputs(data_head, asm_file);
+  fflush(asm_file);
 }
 
 void asm_bss()
 {
   fputs(bss, asm_file);
+  fflush(asm_file);
 }
 
 void asm_io_tail()
 {
   fputs(io_tail, asm_file);
+  fflush(asm_file);
 }
 
 void parser_init(char *tokens, char *symbols)
@@ -245,7 +267,6 @@ void parser_release()
   while(pt != NULL)
   {
       dp = pt;
-      printf("freeing %s\n", dp->to_be_freed->name);
       pt = pt->next;
       symbol_free(dp->to_be_freed);
       free(dp);
